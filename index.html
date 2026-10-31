@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <!-- Viewport mit Zoom-Schutz für Mobilgeräte -->
+    <!-- Viewport with Zoom-protection for mobildevices -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Haushaltsrechner, Fixkosten & Vermögen</title>
 
@@ -1317,6 +1317,67 @@
 
 
 
+
+        /* ---------- Kopfzeile, Einstellungen, Sprache ---------- */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .icon-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 10px;
+            background: none;
+            color: var(--muted);
+            font-size: 1.25rem;
+            line-height: 1;
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .icon-btn:hover,
+        .icon-btn[aria-expanded="true"] {
+            background-color: var(--track);
+            color: var(--ink);
+        }
+
+        .settings-card {
+            margin: 8px 0 4px;
+            padding: 16px;
+            background-color: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+        }
+
+        .settings-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .settings-card .lang-switch {
+            margin: 0 0 14px;
+        }
+
+        .settings-check {
+            font-weight: 600;
+        }
+
+        .settings-hint {
+            margin: 0 0 4px 50px;
+        }
+
+        .settings-done {
+            margin-top: 14px;
+        }
+
+        .lang-switch--login {
+            margin: 18px 0 0;
+        }
+
         /* ---------- Smartphone ---------- */
         @media (max-width: 600px) {
             #app-container {
@@ -1388,33 +1449,62 @@
 <!-- LOGIN MASK -->
 <div id="login-card">
     <img src="pictures/loginPicture2.png" alt="Login Logo" class="login-logo">
-    <h2 class="login-title">Anmelden</h2>
+    <h2 class="login-title" data-i18n="login.title">Anmelden</h2>
     <form id="login-form" onsubmit="handleLogin(event)" class="login-container">
         <label class="field">
-            <span class="field-label">E-Mail</span>
+            <span class="field-label" data-i18n="login.email">E-Mail</span>
             <input type="email" id="email" class="login-input" autocomplete="username" required>
         </label>
         <label class="field">
-            <span class="field-label">Passwort</span>
+            <span class="field-label" data-i18n="login.password">Passwort</span>
             <input type="password" id="password" class="login-input" autocomplete="current-password" required>
         </label>
-        <button type="submit" class="login-btn">Einloggen</button>
+        <button type="submit" class="login-btn" data-i18n="login.submit">Einloggen</button>
         <div id="login-error" class="error-message" role="alert"></div>
     </form>
+    <div class="seg lang-switch lang-switch--login" role="group" aria-label="Sprache / Language">
+        <button type="button" class="seg-btn" data-lang="de" onclick="setzeSprache('de')">Deutsch</button>
+        <button type="button" class="seg-btn" data-lang="en" onclick="setzeSprache('en')">English</button>
+    </div>
 </div>
 
 <!-- HAUPT-APP -->
 <div id="app-container">
     <header class="app-header">
-        <h1 class="app-title">Finanz- & Haushaltsplaner</h1>
-        <button class="logout-btn" onclick="handleLogout()">Abmelden</button>
+        <h1 class="app-title" data-i18n="app.heading">Finanz- & Haushaltsplaner</h1>
+        <div class="header-actions">
+            <button type="button" id="settingsBtn" class="icon-btn" onclick="toggleEinstellungen()" aria-expanded="false" aria-controls="einstellungen" data-i18n-aria="app.settings" data-i18n-title="app.settings">⚙︎</button>
+            <button class="logout-btn" onclick="handleLogout()" data-i18n="app.logout">Abmelden</button>
+        </div>
     </header>
+
+    <!-- EINSTELLUNGEN -->
+    <section id="einstellungen" class="settings-card" hidden>
+        <h2 class="settings-title" data-i18n="settings.title">Einstellungen</h2>
+
+        <span class="field-label" data-i18n="settings.language">Sprache</span>
+        <div class="seg lang-switch" role="group" data-i18n-aria="settings.language">
+            <button type="button" class="seg-btn" data-lang="de" onclick="setzeSprache('de')">Deutsch</button>
+            <button type="button" class="seg-btn" data-lang="en" onclick="setzeSprache('en')">English</button>
+        </div>
+
+        <label class="calc-check settings-check">
+            <span class="switch">
+                <input type="checkbox" id="einstellungAvd" data-i18n-aria="settings.avd">
+                <span class="slider"></span>
+            </span>
+            <span data-i18n="settings.avd">Altersvorsorgedepot-Rechner</span>
+        </label>
+        <p class="diff-hint settings-hint" data-i18n="settings.avdHint"></p>
+
+        <button type="button" class="add-btn settings-done" onclick="toggleEinstellungen()" data-i18n="settings.close">Fertig</button>
+    </section>
 
     <div class="tab-bar">
         <nav class="tab-nav">
-            <button class="tab-btn active" onclick="openTab('monatTab', this)">Monatsrechner</button>
-            <button class="tab-btn" onclick="openTab('fixkostenTab', this)">Fixkosten</button>
-            <button class="tab-btn" onclick="openTab('vermoegenTab', this)">Vermögen</button>
+            <button class="tab-btn active" onclick="openTab('monatTab', this)" data-i18n="tab.month">Monatsrechner</button>
+            <button class="tab-btn" onclick="openTab('fixkostenTab', this)" data-i18n="tab.fixed">Fixkosten</button>
+            <button class="tab-btn" onclick="openTab('vermoegenTab', this)" data-i18n="tab.assets">Vermögen</button>
         </nav>
     </div>
 
@@ -1423,21 +1513,21 @@
         <img src="pictures/koettbular.png" alt="Logo" class="tab-logo">
 
         <div class="date-picker">
-            <select id="monatSelect" aria-label="Monat">
-                <option value="01">Januar</option>
-                <option value="02">Februar</option>
-                <option value="03">März</option>
-                <option value="04">April</option>
-                <option value="05">Mai</option>
-                <option value="06">Juni</option>
-                <option value="07">Juli</option>
-                <option value="08">August</option>
-                <option value="09">September</option>
-                <option value="10">Oktober</option>
-                <option value="11">November</option>
-                <option value="12">Dezember</option>
+            <select id="monatSelect" data-i18n-aria="month.monthAria">
+                <option value="01" data-i18n="month.01">Januar</option>
+                <option value="02" data-i18n="month.02">Februar</option>
+                <option value="03" data-i18n="month.03">März</option>
+                <option value="04" data-i18n="month.04">April</option>
+                <option value="05" data-i18n="month.05">Mai</option>
+                <option value="06" data-i18n="month.06">Juni</option>
+                <option value="07" data-i18n="month.07">Juli</option>
+                <option value="08" data-i18n="month.08">August</option>
+                <option value="09" data-i18n="month.09">September</option>
+                <option value="10" data-i18n="month.10">Oktober</option>
+                <option value="11" data-i18n="month.11">November</option>
+                <option value="12" data-i18n="month.12">Dezember</option>
             </select>
-            <select id="jahrSelect" aria-label="Jahr">
+            <select id="jahrSelect" data-i18n-aria="month.yearAria">
                 <option value="2026">2026</option>
                 <option value="2027">2027</option>
                 <option value="2028">2028</option>
@@ -1450,28 +1540,28 @@
 
         <div class="monat-sheet">
             <div class="kontostand-row">
-                <label for="kontostand">Kontostand</label>
+                <label for="kontostand" data-i18n="month.balance">Kontostand</label>
                 <input type="number" id="kontostand" value="0" step="0.01">
             </div>
 
             <!-- Ausgaben -->
             <div class="entry-section">
                 <div class="entry-head">
-                    <h3>Ausgaben</h3>
-                    <span class="entry-open">offen <span id="ausgabenOffen">0,00</span> €</span>
+                    <h3 data-i18n="month.expenses">Ausgaben</h3>
+                    <span class="entry-open"><span data-i18n="month.open">offen</span> <span id="ausgabenOffen">0,00</span> €</span>
                 </div>
                 <div class="entry entry-labels" aria-hidden="true">
-                    <span>Bezeichnung</span><span class="col-right">Betrag (€)</span><span class="col-center">Abgeb.</span><span></span>
+                    <span data-i18n="month.colName">Bezeichnung</span><span class="col-right" data-i18n="month.colAmount">Betrag (€)</span><span class="col-center" data-i18n="month.colPaid">Abgeb.</span><span></span>
                 </div>
                 <div id="ausgabenBody" class="entry-list"></div>
-                <p id="ausgabenLeer" class="entry-empty" hidden>Noch keine Ausgaben in diesem Monat.</p>
-                <button type="button" class="add-btn" onclick="addEntry('ausgabe')">+ Ausgabe hinzufügen</button>
+                <p id="ausgabenLeer" class="entry-empty" hidden data-i18n="month.empty">Noch keine Ausgaben in diesem Monat.</p>
+                <button type="button" class="add-btn" onclick="addEntry('ausgabe')" data-i18n="month.add">+ Ausgabe hinzufügen</button>
             </div>
 
             <div class="result-bar" id="monatResultRow">
                 <div class="result-label">
-                    Frei verfügbar diesen Monat
-                    <span class="sub-text">Kontostand minus offene Ausgaben</span>
+                    <span data-i18n="month.free">Frei verfügbar diesen Monat</span>
+                    <span class="sub-text" data-i18n="month.freeSub">Kontostand minus offene Ausgaben</span>
                 </div>
                 <div class="result-val"><span id="result">0,00</span> €</div>
             </div>
@@ -1481,22 +1571,22 @@
     <!-- SEITE 2: FIXKOSTEN DOKUMENTATION -->
     <section id="fixkostenTab" class="tab-content">
         <img src="pictures/koettbular.png" alt="Logo" class="tab-logo">
-        <h2 class="section-title">Fixkosten</h2>
+        <h2 class="section-title" data-i18n="fixed.title">Fixkosten</h2>
 
         <table class="ledger ledger--fix">
             <thead>
             <tr class="header-row">
-                <th>Bezeichnung</th>
-                <th class="col-right">Betrag (€)</th>
-                <th>Turnus</th>
+                <th data-i18n="fixed.colName">Bezeichnung</th>
+                <th class="col-right" data-i18n="fixed.colAmount">Betrag (€)</th>
+                <th data-i18n="fixed.colInterval">Turnus</th>
             </tr>
             </thead>
             <tbody id="fixkostenBody"></tbody>
             <tfoot>
             <tr class="result-row">
                 <th colspan="2">
-                    Fixkosten pro Monat
-                    <span class="sub-text">Durchschnittliche Belastung</span>
+                    <span data-i18n="fixed.total">Fixkosten pro Monat</span>
+                    <span class="sub-text" data-i18n="fixed.totalSub">Durchschnittliche Belastung</span>
                 </th>
                 <td class="result-val"><span id="fixResult">0,00</span> €</td>
             </tr>
@@ -1507,102 +1597,102 @@
     <!-- SEITE 3: VERMÖGENSÜBERSICHT -->
     <section id="vermoegenTab" class="tab-content">
         <img src="pictures/koettbular.png" alt="Logo" class="tab-logo">
-        <h2 class="section-title">Vermögen</h2>
+        <h2 class="section-title" data-i18n="assets.title">Vermögen</h2>
 
         <table class="ledger ledger--asset">
             <thead>
             <tr class="header-row">
-                <th>Kategorie</th>
-                <th class="col-right">Wert (€)</th>
+                <th data-i18n="assets.colCategory">Kategorie</th>
+                <th class="col-right" data-i18n="assets.colValue">Wert (€)</th>
             </tr>
             </thead>
             <tbody id="assetBody"></tbody>
             <tfoot>
             <tr class="result-row">
-                <th>Gesamtvermögen</th>
+                <th data-i18n="assets.total">Gesamtvermögen</th>
                 <td class="result-val"><span id="totalAssetResult">0,00</span> €</td>
             </tr>
             </tfoot>
         </table>
 
         <!-- Chart Button & Container -->
-        <button id="chartToggleBtn" class="chart-btn" onclick="toggleAssetChart()" aria-expanded="false" aria-controls="chartContainer">Vermögensentwicklung anzeigen</button>
+        <button id="chartToggleBtn" class="chart-btn" onclick="toggleAssetChart()" aria-expanded="false" aria-controls="chartContainer" data-i18n-toggle="chart.toggle">Vermögensentwicklung anzeigen</button>
         <div id="chartContainer" class="chart-container">
             <canvas id="assetChart"></canvas>
-            <p class="chart-hint">Tippe zwei Punkte an, um die Differenz zu sehen.</p>
+            <p class="chart-hint" data-i18n="chart.hint">Tippe zwei Punkte an, um die Differenz zu sehen.</p>
             <!-- Container für die Differenz-Anzeige -->
             <div id="chartDiffOutput" style="display: none;"></div>
         </div>
 
         <!-- Monatsbudget: Szenarien mit Einnahmen, Fixkosten und Sparraten -->
-        <button id="budgetToggleBtn" class="chart-btn" onclick="toggleBudget()" aria-expanded="false" aria-controls="budgetContainer">Einnahmen &amp; Fixkosten anzeigen</button>
+        <button id="budgetToggleBtn" class="chart-btn" onclick="toggleBudget()" aria-expanded="false" aria-controls="budgetContainer" data-i18n-toggle="budget.toggle">Einnahmen &amp; Fixkosten anzeigen</button>
         <div id="budgetContainer" class="chart-container">
-            <div id="budgetTabs" class="budget-tabs" role="tablist" aria-label="Szenarien"></div>
+            <div id="budgetTabs" class="budget-tabs" role="tablist" data-i18n-aria="budget.scenariosAria"></div>
 
             <div class="calc-grid" style="margin-top: 12px;">
                 <label class="calc-field calc-field--wide">
-                    <span class="field-label">Name des Szenarios</span>
-                    <input type="text" id="budgetSzenarioName" maxlength="40" placeholder="z. B. Elternzeit">
+                    <span class="field-label" data-i18n="budget.scenarioName">Name des Szenarios</span>
+                    <input type="text" id="budgetSzenarioName" maxlength="40" data-i18n-placeholder="budget.scenarioPlaceholder">
                 </label>
             </div>
-            <button type="button" id="budgetSzenarioLoeschen" class="text-btn avd-remove-btn" onclick="budgetSzenarioLoeschen()" hidden>Dieses Szenario löschen</button>
+            <button type="button" id="budgetSzenarioLoeschen" class="text-btn avd-remove-btn" onclick="budgetSzenarioLoeschen()" hidden data-i18n="budget.deleteScenario">Dieses Szenario löschen</button>
 
             <!-- Einnahmen -->
             <div class="entry-head" style="margin-top: 16px;">
-                <h3>Einnahmen</h3>
-                <span class="entry-open">gesamt <span id="budgetEinnahmenSumme">0,00</span> €</span>
+                <h3 data-i18n="budget.income">Einnahmen</h3>
+                <span class="entry-open"><span data-i18n="common.total">gesamt</span> <span id="budgetEinnahmenSumme">0,00</span> €</span>
             </div>
             <div class="budget-row entry-labels" aria-hidden="true">
-                <span>Bezeichnung</span><span class="col-right">€ / Monat</span><span></span>
+                <span data-i18n="common.description">Bezeichnung</span><span class="col-right" data-i18n="budget.colPerMonth">€ / Monat</span><span></span>
             </div>
             <div id="budgetBody" data-liste="einnahmen"></div>
-            <p id="budgetLeer" class="entry-empty" hidden>Noch keine Einnahmen eingetragen.</p>
-            <button type="button" class="add-btn" onclick="addBudgetZeile('einnahmen')">+ Einnahme hinzufügen</button>
+            <p id="budgetLeer" class="entry-empty" hidden data-i18n="budget.incomeEmpty">Noch keine Einnahmen eingetragen.</p>
+            <button type="button" class="add-btn" onclick="addBudgetZeile('einnahmen')" data-i18n="budget.addIncome">+ Einnahme hinzufügen</button>
 
             <!-- Fixkosten -->
             <div id="budgetFixBox" class="budget-fix">
                 <div class="diff-row">
                     <span>
-                        Fixkosten pro Monat
-                        <span id="budgetFixHerkunft" class="eink-quelle-sub">aus dem Fixkosten-Tab</span>
+                        <span data-i18n="budget.fixedPerMonth">Fixkosten pro Monat</span>
+                        <span id="budgetFixHerkunft" class="eink-quelle-sub"></span>
                     </span>
                     <strong id="budgetFixSumme" class="diff-neg">−0,00 €</strong>
                 </div>
                 <details id="budgetFixDetails" class="budget-details">
-                    <summary>Fixkosten für dieses Szenario anpassen</summary>
-                    <p class="diff-hint">Änderungen gelten nur in diesem Szenario, der Fixkosten-Tab bleibt unverändert. Beträge pro Monat.</p>
+                    <summary data-i18n="budget.adjustSummary">Fixkosten für dieses Szenario anpassen</summary>
+                    <p class="diff-hint" data-i18n="budget.adjustHint"></p>
                     <div id="budgetFixListe"></div>
                     <div id="budgetFixExtra"></div>
-                    <button type="button" class="add-btn add-btn--small" onclick="addBudgetFixExtra()">+ Fixkosten nur für dieses Szenario</button>
-                    <button type="button" id="budgetFixReset" class="text-btn" onclick="budgetFixZuruecksetzen()" hidden>Alle Anpassungen zurücksetzen</button>
+                    <button type="button" class="add-btn add-btn--small" onclick="addBudgetFixExtra()" data-i18n="budget.addFixExtra">+ Fixkosten nur für dieses Szenario</button>
+                    <button type="button" id="budgetFixReset" class="text-btn" onclick="budgetFixZuruecksetzen()" hidden data-i18n="budget.resetAll">Alle Anpassungen zurücksetzen</button>
                 </details>
             </div>
 
             <div class="budget-zwischen diff-row">
-                <span>Frei verfügbar nach Fixkosten</span>
+                <span data-i18n="budget.afterFixed">Frei verfügbar nach Fixkosten</span>
                 <strong id="budgetNachFix">0,00 €</strong>
             </div>
 
             <!-- Sparraten -->
             <div class="entry-head" style="margin-top: 18px;">
-                <h3>Sparraten</h3>
-                <span class="entry-open">gesamt <span id="budgetSparSumme">0,00</span> €</span>
+                <h3 data-i18n="budget.savings">Sparraten</h3>
+                <span class="entry-open"><span data-i18n="common.total">gesamt</span> <span id="budgetSparSumme">0,00</span> €</span>
             </div>
             <div class="budget-row budget-row--spar entry-labels" aria-hidden="true">
-                <span>Bezeichnung</span><span class="col-right">Betrag</span><span>Einheit</span><span></span>
+                <span data-i18n="common.description">Bezeichnung</span><span class="col-right" data-i18n="budget.colAmount">Betrag</span><span data-i18n="budget.colUnit">Einheit</span><span></span>
             </div>
             <div id="sparBody" data-liste="sparen"></div>
-            <p id="sparLeer" class="entry-empty" hidden>Noch keine Sparraten in diesem Szenario.</p>
-            <button type="button" class="add-btn" onclick="addBudgetZeile('sparen')">+ Sparrate hinzufügen</button>
-            <button type="button" class="text-btn calc-depot-btn" style="margin-top: 6px;" onclick="sparratenUebernehmen()">Sparraten aus den Rechnern übernehmen</button>
-            <p class="chart-hint" style="margin-top: 2px;">„%“ bezieht sich auf das frei Verfügbare nach Fixkosten.</p>
+            <p id="sparLeer" class="entry-empty" hidden data-i18n="budget.savingsEmpty">Noch keine Sparraten in diesem Szenario.</p>
+            <button type="button" class="add-btn" onclick="addBudgetZeile('sparen')" data-i18n="budget.addSaving">+ Sparrate hinzufügen</button>
+            <button type="button" class="text-btn calc-depot-btn" style="margin-top: 6px;" onclick="sparratenUebernehmen()" data-i18n="budget.importSavings">Sparraten aus den Rechnern übernehmen</button>
+            <p class="chart-hint" style="margin-top: 2px;" data-i18n="budget.percentHint"></p>
             <p id="budgetUebernahmeInfo" class="diff-hint" hidden></p>
             <p id="budgetDoppeltHinweis" class="calc-warn" hidden></p>
 
             <!-- Ergebnis -->
             <div id="budgetResultBox" class="calc-result" style="margin-top: 14px;" aria-live="polite">
-                <span id="budgetResultLabel" class="calc-result-label">Frei verfügbar nach Fixkosten und Sparen</span>
-                <span class="calc-result-val"><span id="budgetSaldo">0,00</span> € / Monat</span>
+                <span id="budgetResultLabel" class="calc-result-label" data-i18n="budget.resultDefault">Frei verfügbar nach Fixkosten und Sparen</span>
+                <span class="calc-result-val"><span id="budgetSaldo">0,00</span> <span data-i18n="unit.perMonth">€ / Monat</span></span>
                 <span id="budgetSaldoSub" class="calc-result-sub"></span>
             </div>
 
@@ -1612,136 +1702,136 @@
                 <span id="budgetBarFrei" class="budget-bar-frei"></span>
             </div>
             <div class="budget-legend" aria-hidden="true">
-                <span><i class="budget-dot budget-dot--fix"></i>Fixkosten</span>
-                <span><i class="budget-dot budget-dot--spar"></i>Sparen</span>
-                <span><i class="budget-dot budget-dot--frei"></i>Frei verfügbar</span>
+                <span><i class="budget-dot budget-dot--fix"></i><span data-i18n="budget.legendFixed">Fixkosten</span></span>
+                <span><i class="budget-dot budget-dot--spar"></i><span data-i18n="budget.legendSavings">Sparen</span></span>
+                <span><i class="budget-dot budget-dot--frei"></i><span data-i18n="budget.legendFree">Frei verfügbar</span></span>
             </div>
 
             <!-- Vergleich aller Szenarien -->
             <div id="budgetVergleich" class="calc-box" hidden>
-                <span class="calc-box-title">Szenarien im Vergleich</span>
+                <span class="calc-box-title" data-i18n="budget.compare">Szenarien im Vergleich</span>
                 <div class="budget-vgl-row budget-vgl-head">
-                    <span>Einnahmen</span><span>Fixkosten</span><span>Sparen</span><span>Frei</span>
+                    <span data-i18n="budget.colIncome">Einnahmen</span><span data-i18n="budget.colFixed">Fixkosten</span><span data-i18n="budget.colSavings">Sparen</span><span data-i18n="budget.colFree">Frei</span>
                 </div>
                 <div id="budgetVergleichBody"></div>
             </div>
         </div>
 
         <!-- Zinseszins-Rechner -->
-        <button id="zinsToggleBtn" class="chart-btn" onclick="toggleZinsRechner()" aria-expanded="false" aria-controls="zinsContainer">Zinseszins-Rechner anzeigen</button>
+        <button id="zinsToggleBtn" class="chart-btn" onclick="toggleZinsRechner()" aria-expanded="false" aria-controls="zinsContainer" data-i18n-toggle="zins.toggle">Zinseszins-Rechner anzeigen</button>
         <div id="zinsContainer" class="chart-container">
             <div class="calc-grid">
                 <label class="calc-field calc-field--wide">
-                    <span class="field-label">Startkapital / Depotwert (€)</span>
+                    <span class="field-label" data-i18n="zins.start">Startkapital / Depotwert (€)</span>
                     <input type="number" id="zinsStart" step="0.01" min="0" inputmode="decimal" placeholder="0">
                 </label>
                 <button type="button" id="zinsDepotBtn" class="text-btn calc-depot-btn" onclick="depotwertUebernehmen()"></button>
                 <label class="calc-field">
-                    <span class="field-label">Sparrate pro Monat (€)</span>
+                    <span class="field-label" data-i18n="zins.rate">Sparrate pro Monat (€)</span>
                     <input type="number" id="zinsSparrate" step="0.01" min="0" inputmode="decimal" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Rendite pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="zins.return">Rendite pro Jahr (%)</span>
                     <input type="number" id="zinsRendite" step="0.1" inputmode="decimal" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Laufzeit (Jahre)</span>
+                    <span class="field-label" data-i18n="zins.years">Laufzeit (Jahre)</span>
                     <input type="number" id="zinsJahre" step="1" min="1" max="80" inputmode="numeric" placeholder="20">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Inflation pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="zins.inflation">Inflation pro Jahr (%)</span>
                     <input type="number" id="zinsInflation" step="0.1" inputmode="decimal" placeholder="0">
                 </label>
             </div>
 
-            <div class="seg" role="group" aria-label="Darstellung des Endwerts">
-                <button type="button" class="seg-btn active" data-ansicht="nominal" onclick="setZinsAnsicht('nominal')" aria-pressed="true">Nominal</button>
-                <button type="button" class="seg-btn" data-ansicht="real" onclick="setZinsAnsicht('real')" aria-pressed="false">Inflationsbereinigt</button>
+            <div class="seg" role="group" data-i18n-aria="zins.viewAria">
+                <button type="button" class="seg-btn active" data-ansicht="nominal" onclick="setZinsAnsicht('nominal')" aria-pressed="true" data-i18n="view.nominal">Nominal</button>
+                <button type="button" class="seg-btn" data-ansicht="real" onclick="setZinsAnsicht('real')" aria-pressed="false" data-i18n="view.real">Inflationsbereinigt</button>
             </div>
 
             <div id="zinsResultBox" class="calc-result" aria-live="polite">
-                <span id="zinsResultLabel" class="calc-result-label">Endwert</span>
+                <span id="zinsResultLabel" class="calc-result-label" data-i18n="zins.endValue">Endwert</span>
                 <span class="calc-result-val"><span id="zinsEndwert">0,00</span> €</span>
                 <span id="zinsResultSub" class="calc-result-sub"></span>
             </div>
 
-            <div class="diff-row"><span>Startkapital</span><span id="zinsAusStart">0,00 €</span></div>
-            <div class="diff-row"><span>Summe der Sparraten</span><span id="zinsAusSpar">0,00 €</span></div>
-            <div class="diff-row"><span>Erträge (Zinseszins)</span><span id="zinsAusErtrag">0,00 €</span></div>
-            <div class="diff-row diff-total"><span>Endwert nominal</span><span id="zinsAusNominal">0,00 €</span></div>
-            <div class="diff-row"><span>Kaufkraftverlust durch Inflation</span><span id="zinsAusVerlust" class="diff-neg">0,00 €</span></div>
-            <div class="diff-row"><span>Endwert in heutiger Kaufkraft</span><span id="zinsAusReal" class="calc-real">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="zins.rowStart">Startkapital</span><span id="zinsAusStart">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="zins.rowSavings">Summe der Sparraten</span><span id="zinsAusSpar">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="zins.rowGains">Erträge (Zinseszins)</span><span id="zinsAusErtrag">0,00 €</span></div>
+            <div class="diff-row diff-total"><span data-i18n="zins.rowNominal">Endwert nominal</span><span id="zinsAusNominal">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="zins.rowLoss">Kaufkraftverlust durch Inflation</span><span id="zinsAusVerlust" class="diff-neg">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="zins.rowReal">Endwert in heutiger Kaufkraft</span><span id="zinsAusReal" class="calc-real">0,00 €</span></div>
 
             <canvas id="zinsChart"></canvas>
-            <p class="chart-hint">Annahmen: Sparrate am Monatsende, Erträge werden monatlich wieder angelegt, die Rendite gilt für Startkapital und Sparraten. Steuern und Kosten sind nicht berücksichtigt.</p>
+            <p class="chart-hint" data-i18n="zins.hint"></p>
         </div>
 
-        <!-- Altersvorsorgedepot-Rechner -->
-        <button id="avdToggleBtn" class="chart-btn" onclick="toggleAvdRechner()" aria-expanded="false" aria-controls="avdContainer">Altersvorsorgedepot-Rechner anzeigen</button>
+        <!-- Altersvorsorgedepot-Rechner (in den Einstellungen abschaltbar) -->
+        <button id="avdToggleBtn" class="chart-btn" onclick="toggleAvdRechner()" aria-expanded="false" aria-controls="avdContainer" data-i18n-toggle="avd.toggle">Altersvorsorgedepot-Rechner anzeigen</button>
         <div id="avdContainer" class="chart-container">
-            <p class="calc-intro">Staatlich gefördertes Depot ab 2027: Grundzulage 50 % auf die ersten 360 € und 25 % bis 1.800 € Eigenbeitrag im Jahr (max. 540 €), dazu bis zu 300 € je Kind. Auszahlung frühestens mit 65, als Auszahlplan mindestens bis 85.</p>
+            <p class="calc-intro" data-i18n="avd.intro"></p>
 
-            <div id="avdProfilBar" class="seg seg--profile" role="group" aria-label="Depot auswählen"></div>
+            <div id="avdProfilBar" class="seg seg--profile" role="group" data-i18n-aria="avd.profileAria"></div>
 
             <div class="calc-grid">
                 <label class="calc-field calc-field--wide">
-                    <span class="field-label">Name des Depots</span>
-                    <input type="text" id="avdName" maxlength="40" placeholder="z. B. Mein Depot">
+                    <span class="field-label" data-i18n="avd.name">Name des Depots</span>
+                    <input type="text" id="avdName" maxlength="40" data-i18n-placeholder="avd.namePlaceholder">
                 </label>
             </div>
-            <button type="button" id="avdRemoveBtn" class="text-btn avd-remove-btn" onclick="avdDepotEntfernen()" hidden>Dieses Depot entfernen</button>
+            <button type="button" id="avdRemoveBtn" class="text-btn avd-remove-btn" onclick="avdDepotEntfernen()" hidden data-i18n="avd.remove">Dieses Depot entfernen</button>
 
-            <h4 class="calc-sub">Ansparphase</h4>
+            <h4 class="calc-sub" data-i18n="avd.phase">Ansparphase</h4>
             <div class="calc-grid">
                 <label class="calc-field">
-                    <span class="field-label">Alter heute</span>
+                    <span class="field-label" data-i18n="avd.age">Alter heute</span>
                     <input type="number" id="avdAlter" step="1" min="16" max="70" inputmode="numeric">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Auszahlung ab Alter</span>
+                    <span class="field-label" data-i18n="avd.payoutAge">Auszahlung ab Alter</span>
                     <input type="number" id="avdRente" step="1" min="65" max="80" inputmode="numeric">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Eigenbeitrag pro Monat (€)</span>
+                    <span class="field-label" data-i18n="avd.contribution">Eigenbeitrag pro Monat (€)</span>
                     <input type="number" id="avdBeitrag" step="1" min="0" inputmode="decimal" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Kinder mit Kinderzulage</span>
+                    <span class="field-label" data-i18n="avd.children">Kinder mit Kinderzulage</span>
                     <input type="number" id="avdKinder" step="1" min="0" max="10" inputmode="numeric" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Kinderzulage noch (Jahre)</span>
+                    <span class="field-label" data-i18n="avd.childYears">Kinderzulage noch (Jahre)</span>
                     <input type="number" id="avdKinderJahre" step="1" min="0" max="30" inputmode="numeric" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Rendite pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="avd.return">Rendite pro Jahr (%)</span>
                     <input type="number" id="avdRendite" step="0.1" inputmode="decimal" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Kosten pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="avd.costs">Kosten pro Jahr (%)</span>
                     <input type="number" id="avdKosten" step="0.05" min="0" inputmode="decimal" placeholder="0">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Inflation pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="avd.inflation">Inflation pro Jahr (%)</span>
                     <input type="number" id="avdInflation" step="0.1" inputmode="decimal" placeholder="0">
                 </label>
             </div>
             <label class="calc-check">
                 <span class="switch">
-                    <input type="checkbox" id="avdBonus" aria-label="Berufseinsteigerbonus">
+                    <input type="checkbox" id="avdBonus" data-i18n-aria="avd.bonusAria">
                     <span class="slider"></span>
                 </span>
-                Berufseinsteigerbonus (unter 25, einmalig 200 €)
+                <span data-i18n="avd.bonus">Berufseinsteigerbonus (unter 25, einmalig 200 €)</span>
             </label>
 
-            <h4 class="calc-sub">Steuern <span class="field-label" style="display:inline">(optional)</span></h4>
+            <h4 class="calc-sub"><span data-i18n="avd.taxes">Steuern</span> <span class="field-label" style="display:inline" data-i18n="common.optional">(optional)</span></h4>
             <div class="calc-grid">
                 <label class="calc-field">
-                    <span class="field-label">Grenzsteuersatz heute (%)</span>
-                    <input type="number" id="avdSteuerHeute" step="1" min="0" max="45" inputmode="decimal" placeholder="leer = ohne">
+                    <span class="field-label" data-i18n="avd.taxNow">Grenzsteuersatz heute (%)</span>
+                    <input type="number" id="avdSteuerHeute" step="1" min="0" max="45" inputmode="decimal" data-i18n-placeholder="avd.taxNowPlaceholder">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Steuersatz im Ruhestand (%)</span>
+                    <span class="field-label" data-i18n="avd.taxRetire">Steuersatz im Ruhestand (%)</span>
                     <input type="number" id="avdSteuerRente" step="1" min="0" max="45" inputmode="decimal" placeholder="0">
                 </label>
             </div>
@@ -1749,95 +1839,96 @@
             <div id="avdZulageInfo" class="calc-info"></div>
 
             <div id="avdResultBox" class="calc-result" style="margin-top: 16px;" aria-live="polite">
-                <span id="avdResultLabel" class="calc-result-label">Depotwert bei Auszahlungsbeginn</span>
+                <span id="avdResultLabel" class="calc-result-label" data-i18n="avd.resultDefault">Depotwert bei Auszahlungsbeginn</span>
                 <span class="calc-result-val"><span id="avdEndwert">0,00</span> €</span>
                 <span id="avdResultSub" class="calc-result-sub"></span>
             </div>
 
-            <div class="diff-row"><span>Eigenbeiträge</span><span id="avdAusEigen">0,00 €</span></div>
-            <div class="diff-row"><span>Staatliche Zulagen</span><span id="avdAusZulagen" class="diff-pos">0,00 €</span></div>
-            <div class="diff-row"><span>Erträge</span><span id="avdAusErtrag">0,00 €</span></div>
-            <div class="diff-row diff-total"><span>Depotwert</span><span id="avdAusDepot">0,00 €</span></div>
-            <div class="diff-row"><span>Steuer bei Auszahlung (geschätzt)</span><span id="avdAusSteuer" class="diff-neg">0,00 €</span></div>
-            <div class="diff-row"><span>Nach Steuern</span><span id="avdAusNetto">0,00 €</span></div>
-            <div class="diff-row"><span>Nach Steuern in heutiger Kaufkraft</span><span id="avdAusReal" class="calc-real">0,00 €</span></div>
-            <div class="diff-row" id="avdVorteilRow" hidden><span>Zusätzliche Steuererstattung (Ansparphase)</span><span id="avdAusVorteil" class="diff-pos">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="avd.rowOwn">Eigenbeiträge</span><span id="avdAusEigen">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="avd.rowSubsidies">Staatliche Zulagen</span><span id="avdAusZulagen" class="diff-pos">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="avd.rowGains">Erträge</span><span id="avdAusErtrag">0,00 €</span></div>
+            <div class="diff-row diff-total"><span data-i18n="avd.rowValue">Depotwert</span><span id="avdAusDepot">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="avd.rowTax">Steuer bei Auszahlung (geschätzt)</span><span id="avdAusSteuer" class="diff-neg">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="avd.rowNet">Nach Steuern</span><span id="avdAusNetto">0,00 €</span></div>
+            <div class="diff-row"><span data-i18n="avd.rowReal">Nach Steuern in heutiger Kaufkraft</span><span id="avdAusReal" class="calc-real">0,00 €</span></div>
+            <div class="diff-row" id="avdVorteilRow" hidden><span data-i18n="avd.rowRefund">Zusätzliche Steuererstattung (Ansparphase)</span><span id="avdAusVorteil" class="diff-pos">0,00 €</span></div>
 
             <div class="calc-box">
-                <span class="calc-box-title">Auszahlplan bis 85</span>
-                <span class="calc-box-val"><span id="avdRateNetto">0,00</span> € / Monat netto</span>
+                <span class="calc-box-title" data-i18n="avd.payoutPlan">Auszahlplan bis 85</span>
+                <span class="calc-box-val"><span id="avdRateNetto">0,00</span> <span data-i18n="avd.perMonthNet">€ / Monat netto</span></span>
                 <span id="avdRateSub" class="calc-box-sub"></span>
             </div>
 
             <div class="calc-box">
-                <span class="calc-box-title">Zum Vergleich: normales ETF-Depot (gleiche Eigenbeiträge, ohne Zulagen)</span>
-                <div class="diff-row"><span>Endwert nach Steuern</span><strong id="avdEtfNetto">0,00 €</strong></div>
-                <div class="diff-row"><span>Auszahlplan bis 85, netto</span><strong id="avdEtfRate">0,00 € / Monat</strong></div>
+                <span class="calc-box-title" data-i18n="avd.compareTitle">Zum Vergleich: normales ETF-Depot (gleiche Eigenbeiträge, ohne Zulagen)</span>
+                <div class="diff-row"><span data-i18n="avd.compareEnd">Endwert nach Steuern</span><strong id="avdEtfNetto">0,00 €</strong></div>
+                <div class="diff-row"><span data-i18n="avd.comparePlan">Auszahlplan bis 85, netto</span><strong id="avdEtfRate">0,00 €</strong></div>
                 <span id="avdEtfSub" class="calc-box-sub" style="margin-top: 4px;"></span>
             </div>
 
             <canvas id="avdChart"></canvas>
-            <p class="chart-hint">Vereinfachte Schätzung: Eigenbeitrag am Monatsende, Zulagen einmal im Jahr gutgeschrieben, Rendite abzüglich Kosten. Im Altersvorsorgedepot werden die Auszahlungen voll mit dem persönlichen Steuersatz versteuert; im ETF-Depot nur die Gewinne mit Abgeltungssteuer (inkl. Soli, 30 % Teilfreistellung, ohne Kirchensteuer, Freibetrag und Vorabpauschale). Die Kinderzulage gibt es je Kind nur für einen Elternteil – trag die Kinder nur in einem Depot ein. Die Steuererstattung aus der Ansparphase ist nicht im Depotwert enthalten. Keine Anlageberatung.</p>
+            <p class="chart-hint" data-i18n="avd.hint"></p>
         </div>
 
         <!-- Einkommen aus Privatvermögen -->
-        <button id="einkToggleBtn" class="chart-btn" onclick="toggleEinkommen()" aria-expanded="false" aria-controls="einkContainer">Monatliches Einkommen aus Privatvermögen anzeigen</button>
+        <button id="einkToggleBtn" class="chart-btn" onclick="toggleEinkommen()" aria-expanded="false" aria-controls="einkContainer" data-i18n-toggle="eink.toggle">Monatliches Einkommen aus Privatvermögen anzeigen</button>
         <div id="einkContainer" class="chart-container">
-            <p class="calc-intro">Was dein privates Vermögen im Ruhestand pro Monat auszahlen kann. Die Werte kommen aus dem Zinseszins-Rechner, den Altersvorsorgedepots und auf Wunsch aus deiner Vermögensliste.</p>
+            <p id="einkIntro" class="calc-intro" data-i18n="eink.intro"></p>
 
             <div class="calc-grid">
                 <label class="calc-field">
-                    <span class="field-label">Mein Alter heute</span>
+                    <span class="field-label" data-i18n="eink.age">Mein Alter heute</span>
                     <input type="number" id="einkAlter" step="1" min="16" max="90" inputmode="numeric">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Ruhestand ab Alter</span>
+                    <span class="field-label" data-i18n="eink.retire">Ruhestand ab Alter</span>
                     <input type="number" id="einkRente" step="1" min="40" max="85" inputmode="numeric">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Entnahme bis Alter</span>
+                    <span class="field-label" data-i18n="eink.until">Entnahme bis Alter</span>
                     <input type="number" id="einkBis" step="1" min="60" max="110" inputmode="numeric">
                 </label>
                 <label class="calc-field">
-                    <span class="field-label">Inflation pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="eink.inflation">Inflation pro Jahr (%)</span>
                     <input type="number" id="einkInflation" step="0.1" inputmode="decimal" placeholder="0">
                 </label>
             </div>
 
-            <h4 class="calc-sub">Einbeziehen</h4>
+            <h4 class="calc-sub" data-i18n="eink.include">Einbeziehen</h4>
             <div id="einkQuellen"></div>
             <div id="einkRestFeld" class="calc-grid" style="margin-top: 8px;" hidden>
                 <label class="calc-field calc-field--wide">
-                    <span class="field-label">Rendite übriges Vermögen pro Jahr (%)</span>
+                    <span class="field-label" data-i18n="eink.restReturn">Rendite übriges Vermögen pro Jahr (%)</span>
                     <input type="number" id="einkRestRendite" step="0.1" inputmode="decimal" placeholder="0">
                 </label>
             </div>
 
-            <div class="seg" id="einkSeg" role="group" aria-label="Darstellung des Einkommens">
-                <button type="button" class="seg-btn active" data-ansicht="nominal" onclick="setEinkAnsicht('nominal')" aria-pressed="true">Nominal</button>
-                <button type="button" class="seg-btn" data-ansicht="real" onclick="setEinkAnsicht('real')" aria-pressed="false">Inflationsbereinigt</button>
+            <div class="seg" id="einkSeg" role="group" data-i18n-aria="eink.viewAria">
+                <button type="button" class="seg-btn active" data-ansicht="nominal" onclick="setEinkAnsicht('nominal')" aria-pressed="true" data-i18n="view.nominal">Nominal</button>
+                <button type="button" class="seg-btn" data-ansicht="real" onclick="setEinkAnsicht('real')" aria-pressed="false" data-i18n="view.real">Inflationsbereinigt</button>
             </div>
 
             <div id="einkResultBox" class="calc-result" aria-live="polite">
-                <span id="einkResultLabel" class="calc-result-label">Monatliches Einkommen</span>
-                <span class="calc-result-val"><span id="einkSumme">0,00</span> € / Monat</span>
+                <span id="einkResultLabel" class="calc-result-label" data-i18n="eink.resultDefault">Monatliches Einkommen</span>
+                <span class="calc-result-val"><span id="einkSumme">0,00</span> <span data-i18n="unit.perMonth">€ / Monat</span></span>
                 <span id="einkResultSub" class="calc-result-sub"></span>
             </div>
 
             <div id="einkZeilen"></div>
 
             <div class="calc-box">
-                <span class="calc-box-title">Variante Kapitalerhalt</span>
-                <span class="calc-box-val"><span id="einkErhalt">0,00</span> € / Monat</span>
+                <span class="calc-box-title" data-i18n="eink.preserve">Variante Kapitalerhalt</span>
+                <span class="calc-box-val"><span id="einkErhalt">0,00</span> <span data-i18n="unit.perMonth">€ / Monat</span></span>
                 <span id="einkErhaltSub" class="calc-box-sub"></span>
             </div>
 
-            <p class="chart-hint">Das freie Depot und das übrige Vermögen wachsen bis zum Ruhestand mit Sparrate und Rendite aus dem Zinseszins-Rechner bzw. der angegebenen Rendite und werden danach bis zum gewählten Alter gleichmäßig entnommen. Die Altersvorsorgedepots zahlen jeweils ab ihrem eigenen Auszahlungsalter bis 85 (Werte aus dem Rechner darüber). Freies Depot nach Abgeltungssteuer auf den Gewinnanteil, Altersvorsorgedepots nach dem dort angegebenen Steuersatz, übriges Vermögen vor Steuern. Gesetzliche Rente ist nicht enthalten.</p>
+            <p id="einkHint" class="chart-hint" data-i18n="eink.hint"></p>
         </div>
     </section>
 </div>
 
-<script src="firebase-config.js?v=13"></script>
-<script src="app.js?v=13"></script>
+<script src="i18n.js?v=14"></script>
+<script src="firebase-config.js?v=14"></script>
+<script src="app.js?v=14"></script>
 </body>
 </html>

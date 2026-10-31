@@ -1,8 +1,7 @@
 // Die Firebase-Zugangsdaten liegen in firebase-config.js
 if (!window.FIREBASE_CONFIG) {
     document.body.insertAdjacentHTML('afterbegin',
-        '<p style="padding:16px;color:#B02A3F;font-family:system-ui">firebase-config.js fehlt. ' +
-        'Kopiere firebase-config.example.js nach firebase-config.js und trage deine Firebase-Daten ein.</p>');
+        '<p style="padding:16px;color:#B02A3F;font-family:system-ui">' + t('app.configMissing') + '</p>');
     throw new Error('firebase-config.js fehlt');
 }
 
@@ -15,9 +14,13 @@ let pendingUpdates = {};
 let saveTimeout = null;
 let vermoegenChartInstance = null;
 
-// UI: Beträge im deutschen Format anzeigen (1.234,56) – reine Anzeige, keine Datenänderung
+// UI: Beträge im Format der gewählten Sprache anzeigen (de: 1.234,56 / en: 1,234.56) – reine Anzeige, keine Datenänderung
 function formatEuro(num) {
-    return (Number(num) || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return (Number(num) || 0).toLocaleString(zahlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatZahl(num, nachkomma) {
+    return (Number(num) || 0).toLocaleString(zahlLocale(), { maximumFractionDigits: nachkomma });
 }
 
 // ===== Login-Statistik =====
@@ -70,7 +73,7 @@ function handleLogin(e) {
     auth.signInWithEmailAndPassword(email, password)
         .then(cred => statistikErfassen(cred.user, 'logins'))
         .catch(error => {
-            errorDiv.innerText = "Anmeldung fehlgeschlagen: " + error.message;
+            errorDiv.innerText = t('login.failed') + error.message;
         });
 }
 
@@ -140,7 +143,8 @@ const LISTEN = {
     ausgabe: {
         nameKey: 'ausgabeName', betragKey: 'ausgabe', statusKey: 'status', countKey: 'ausgabeAnzahl',
         bodyId: 'ausgabenBody', leerId: 'ausgabenLeer', offenId: 'ausgabenOffen',
-        label: 'Ausgabe', statusLabel: 'Abgebucht', vorzeichen: -1, alteAnzahl: ALTE_ANZAHL_AUSGABEN
+        placeholderKey: 'month.entryPlaceholder', statusKey18n: 'month.paid', deleteKey: 'month.deleteEntry',
+        confirmKey: 'month.confirmDelete', vorzeichen: -1, alteAnzahl: ALTE_ANZAHL_AUSGABEN
     }
 };
 
@@ -215,13 +219,13 @@ function erstelleEintragZeile(typ, idx) {
     zeile.className = 'entry' + (e.status ? ' abgebucht' : '');
     zeile.dataset.index = idx;
     zeile.innerHTML = `
-            <input type="text" class="fix-name-input entry-name" placeholder="${cfg.label} benennen" aria-label="Bezeichnung">
-            <input type="number" class="entry-betrag" step="0.01" placeholder="0" aria-label="Betrag in Euro">
-            <label class="switch" title="${cfg.statusLabel}">
-                <input type="checkbox" class="entry-status" aria-label="${cfg.statusLabel}">
+            <input type="text" class="fix-name-input entry-name" placeholder="${t(cfg.placeholderKey)}" aria-label="${t('common.description')}">
+            <input type="number" class="entry-betrag" step="0.01" placeholder="0" aria-label="${t('common.amountEur')}">
+            <label class="switch" title="${t(cfg.statusKey18n)}">
+                <input type="checkbox" class="entry-status" aria-label="${t(cfg.statusKey18n)}">
                 <span class="slider"></span>
             </label>
-            <button type="button" class="entry-delete" aria-label="${cfg.label} löschen" title="${cfg.label} löschen">×</button>
+            <button type="button" class="entry-delete" aria-label="${t(cfg.deleteKey)}" title="${t(cfg.deleteKey)}">×</button>
         `;
     // Werte als Eigenschaften setzen (nicht ins HTML), damit Sonderzeichen in Namen nichts kaputt machen
     zeile.querySelector('.entry-name').value = e.name;
@@ -283,7 +287,7 @@ function richteListeEin(typ) {
         const idx = Number(btn.closest('.entry').dataset.index);
         const e = monat[typ][idx];
         const hatInhalt = e.name.trim() !== '' || (parseFloat(e.betrag) || 0) !== 0;
-        if (hatInhalt && !confirm(`${cfg.label} „${e.name || 'ohne Namen'}“ löschen?`)) return;
+        if (hatInhalt && !confirm(t(cfg.confirmKey, { name: e.name || t('common.noName') }))) return;
         monat[typ].splice(idx, 1);
         zeichneListe(typ);
         calcSum();
@@ -359,32 +363,33 @@ function initDate() {
     jahrSelect.value = getCloudItem('letztesJahr') || aktuellesJahr;
 }
 
-const standardFixkosten = [
-    "Miete / Hypothek", "Strom", "Gas / Heizung", "Internet & Festnetz",
-    "Rundfunkbeitrag (GEZ)", "Handyvertrag", "Fitnessstudio", "Streaming-Dienste",
-    "Haftpflichtversicherung", "KFZ-Versicherung", "Sparen / Depot", "Sonstiges"
-];
+// Vorgabenamen der 16 Fixkosten-Zeilen (Texte in i18n.js)
+const ANZAHL_FIXKOSTEN = 16;
+function standardFixkostenName(i) {
+    return i < 12 ? t('fixed.default.' + i) : t('fixed.numbered', { n: i + 1 });
+}
 
 function createFixkostenRows() {
     const fixkostenBody = document.getElementById('fixkostenBody');
     fixkostenBody.innerHTML = '';
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < ANZAHL_FIXKOSTEN; i++) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
                 <td>
-                    <input type="text" class="fix-name-input" id="fixName${i}" value="${standardFixkosten[i] || 'Fixkosten ' + (i+1)}">
+                    <input type="text" class="fix-name-input" id="fixName${i}">
                 </td>
                 <td>
-                    <input type="number" id="fixBetrag${i}" value="0" step="0.01" aria-label="Betrag">
+                    <input type="number" id="fixBetrag${i}" value="0" step="0.01" data-i18n-aria="common.amount">
                 </td>
                 <td style="text-align: center;">
-                    <select id="fixTurnus${i}" aria-label="Turnus">
-                        <option value="monatlich">Monatlich</option>
-                        <option value="quartal">Quartal</option>
-                        <option value="jaehrlich">Jährlich</option>
+                    <select id="fixTurnus${i}" data-i18n-aria="fixed.colInterval">
+                        <option value="monatlich" data-i18n="fixed.monthly"></option>
+                        <option value="quartal" data-i18n="fixed.quarterly"></option>
+                        <option value="jaehrlich" data-i18n="fixed.yearly"></option>
                     </select>
                 </td>
             `;
+        tr.querySelector('.fix-name-input').value = standardFixkostenName(i);
         fixkostenBody.appendChild(tr);
         document.getElementById(`fixName${i}`).addEventListener('input', calcFixkostenSum);
         document.getElementById(`fixBetrag${i}`).addEventListener('input', calcFixkostenSum);
@@ -393,7 +398,7 @@ function createFixkostenRows() {
 }
 
 function loadFixkostenData() {
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < ANZAHL_FIXKOSTEN; i++) {
         const nameEl = document.getElementById(`fixName${i}`);
         const betragEl = document.getElementById(`fixBetrag${i}`);
         const turnusEl = document.getElementById(`fixTurnus${i}`);
@@ -402,7 +407,7 @@ function loadFixkostenData() {
         const savedBetrag = getCloudItem(`fix_betrag_${i}`);
         const savedTurnus = getCloudItem(`fix_turnus_${i}`);
 
-        if (savedName !== null) nameEl.value = savedName;
+        if (savedName !== null) nameEl.value = lokalisiereStandard(savedName);
         if (savedBetrag !== null) betragEl.value = savedBetrag;
         if (savedTurnus !== null) turnusEl.value = savedTurnus;
 
@@ -418,7 +423,7 @@ function calcFixkostenSum() {
     let monatlicheGesamtsumme = 0;
     const posten = [];
 
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < ANZAHL_FIXKOSTEN; i++) {
         const nameEl = document.getElementById(`fixName${i}`);
         const betragEl = document.getElementById(`fixBetrag${i}`);
         const turnusEl = document.getElementById(`fixTurnus${i}`);
@@ -435,7 +440,7 @@ function calcFixkostenSum() {
             monatlich = betrag;
         }
         monatlicheGesamtsumme += monatlich;
-        posten.push({ index: i, name: nameEl.value || `Fixkosten ${i + 1}`, monatlich, turnus });
+        posten.push({ index: i, name: nameEl.value || t('fixed.numbered', { n: i + 1 }), monatlich, turnus });
 
         setCloudItem(`fix_name_${i}`, nameEl.value);
         setCloudItem(`fix_betrag_${i}`, betragEl.value);
@@ -452,11 +457,8 @@ function calcFixkostenSum() {
     }
 }
 
-const standardAssets = [
-    "Girokonto / Cash", "Tagesgeld / Notgroschen", "ETF & Aktiendepot",
-    "Kryptowährungen", "Edelmetalle (Gold/Silber)", "Bausparer / Altersvorsorge",
-    "Immobilien / Sachwerte", "Sonstiges Vermögen"
-];
+// Vorgabenamen der Vermögenszeilen (Texte in i18n.js)
+const standardAssets = Array.from({ length: 8 }, (_, i) => 'assets.default.' + i);
 
 function createVermoegenRows() {
     const assetBody = document.getElementById('assetBody');
@@ -464,9 +466,10 @@ function createVermoegenRows() {
     for (let i = 0; i < standardAssets.length; i++) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-                <td><input type="text" class="fix-name-input" id="assetName${i}" value="${standardAssets[i]}"></td>
-                <td><input type="number" id="assetWert${i}" value="0" step="0.01" aria-label="Wert"></td>
+                <td><input type="text" class="fix-name-input" id="assetName${i}"></td>
+                <td><input type="number" id="assetWert${i}" value="0" step="0.01" data-i18n-aria="common.value"></td>
             `;
+        tr.querySelector('.fix-name-input').value = t(standardAssets[i]);
         assetBody.appendChild(tr);
         document.getElementById(`assetName${i}`).addEventListener('input', () => calcVermoegenSum(true));
         document.getElementById(`assetWert${i}`).addEventListener('input', () => calcVermoegenSum(true));
@@ -481,7 +484,7 @@ function loadVermoegenData() {
         const savedName = getCloudItem(`asset_name_${i}`);
         const savedWert = getCloudItem(`asset_wert_${i}`);
 
-        if (savedName !== null) nameEl.value = savedName;
+        if (savedName !== null) nameEl.value = lokalisiereStandard(savedName);
         if (savedWert !== null) wertEl.value = savedWert;
 
     }
@@ -563,10 +566,10 @@ function toggleAssetChart() {
     if (container.style.display === 'none' || container.style.display === '') {
         container.style.display = 'block';
         updateAssetChart();
-        if (toggleBtn) { toggleBtn.textContent = 'Vermögensentwicklung ausblenden'; toggleBtn.setAttribute('aria-expanded', 'true'); }
+        setzeToggle(toggleBtn, true);
     } else {
         container.style.display = 'none';
-        if (toggleBtn) { toggleBtn.textContent = 'Vermögensentwicklung anzeigen'; toggleBtn.setAttribute('aria-expanded', 'false'); }
+        setzeToggle(toggleBtn, false);
     }
 }
 
@@ -586,12 +589,12 @@ function handleChartClick(date, value) {
     // Hilfsfunktion für die Formatierung (10.000,00)
     const formatCurrency = (num) => formatEuro(num);
 
-    const resetBtn = `<button type="button" class="text-btn" onclick="resetChartSelection()">Auswahl zurücksetzen</button>`;
+    const resetBtn = `<button type="button" class="text-btn" onclick="resetChartSelection()">${t('chart.reset')}</button>`;
 
     if (clickedChartPoints.length === 1) {
         outputEl.innerHTML = `
             <div class="diff-row"><span>${clickedChartPoints[0].date}</span><span>${formatCurrency(clickedChartPoints[0].value)} €</span></div>
-            <p class="diff-hint">Tippe einen zweiten Punkt an, um die Differenz zu sehen.</p>
+            <p class="diff-hint">${t('chart.secondHint')}</p>
             ${resetBtn}
         `;
     } else if (clickedChartPoints.length === 2) {
@@ -610,7 +613,7 @@ function handleChartClick(date, value) {
         outputEl.innerHTML = `
             <div class="diff-row"><span>${p1.date}</span><span>${formatCurrency(p1.value)} €</span></div>
             <div class="diff-row"><span>${p2.date}</span><span>${formatCurrency(p2.value)} €</span></div>
-            <div class="diff-row diff-total"><span>Differenz</span><span class="${diffClass}">${sign}${formatCurrency(diff)} €</span></div>
+            <div class="diff-row diff-total"><span>${t('chart.difference')}</span><span class="${diffClass}">${sign}${formatCurrency(diff)} €</span></div>
             ${resetBtn}
         `;
     }
@@ -633,7 +636,7 @@ function updateAssetChart() {
 
     const labels = historyData.map(item => {
         const d = new Date(item.date);
-        return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' });
+        return d.toLocaleDateString(zahlLocale(), { day: '2-digit', month: '2-digit', year: '2-digit' });
     });
     const dataPoints = historyData.map(item => item.value);
 
@@ -657,7 +660,7 @@ function updateAssetChart() {
             data: {
                 labels: labels,
                 datasets: [{
-                    label: 'Gesamtvermögen (€)',
+                    label: t('chart.totalLabel'),
                     data: dataPoints,
                     borderColor: cLine,
                     backgroundColor: cFill,
@@ -681,7 +684,7 @@ function updateAssetChart() {
                         beginAtZero: false,
                         grid: { color: cGrid },
                         border: { display: false },
-                        ticks: { callback: (v) => Number(v).toLocaleString('de-DE', { maximumFractionDigits: 0 }) + ' €' }
+                        ticks: { callback: (v) => Number(v).toLocaleString(zahlLocale(), { maximumFractionDigits: 0 }) + ' €' }
                     }
                 },
                 plugins: {
@@ -722,8 +725,8 @@ let budgetAktiv = 0;
 let budgetGeladen = false;
 
 const BUDGET_LISTEN = {
-    einnahmen: { bodyId: 'budgetBody', leerId: 'budgetLeer', label: 'Einnahme' },
-    sparen: { bodyId: 'sparBody', leerId: 'sparLeer', label: 'Sparrate' }
+    einnahmen: { bodyId: 'budgetBody', leerId: 'budgetLeer', placeholderKey: 'budget.incomePlaceholder', deleteKey: 'budget.incomeDelete', confirmKey: 'budget.incomeConfirm' },
+    sparen: { bodyId: 'sparBody', leerId: 'sparLeer', placeholderKey: 'budget.savingPlaceholder', deleteKey: 'budget.savingDelete', confirmKey: 'budget.savingConfirm' }
 };
 
 function budgetSzenario() {
@@ -731,7 +734,7 @@ function budgetSzenario() {
 }
 
 function budgetSzenarioName(sz, idx) {
-    return (sz.name || '').trim() || `Szenario ${idx + 1}`;
+    return lokalisiereStandard((sz.name || '').trim()) || t('budget.scenarioNumbered', { n: idx + 1 });
 }
 
 function normalisiereSzenario(sz) {
@@ -766,7 +769,7 @@ function loadBudgetData() {
         const einnahmen = [];
         const anzahl = getCloudItem('budget_anzahl');
         if (anzahl === null) {
-            einnahmen.push({ name: 'Nettogehalt', betrag: '' });
+            einnahmen.push({ name: t('default.netSalary'), betrag: '' });
         } else {
             const n = parseInt(anzahl, 10) || 0;
             for (let i = 1; i <= n; i++) {
@@ -775,7 +778,7 @@ function loadBudgetData() {
                 einnahmen.push({ name: name !== null ? String(name) : '', betrag: betrag !== null ? String(betrag) : '' });
             }
         }
-        budgetSzenarien.push({ name: 'Aktuell', einnahmen, sparen: [], fix: {}, fixExtra: [] });
+        budgetSzenarien.push({ name: t('default.current'), einnahmen, sparen: [], fix: {}, fixExtra: [] });
     }
 
     budgetAktiv = Math.min(budgetSzenarien.length - 1, Math.max(0, parseInt(getCloudItem('budget_aktiv'), 10) || 0));
@@ -807,8 +810,8 @@ function zeichneBudgetTabs() {
     const add = document.createElement('button');
     add.type = 'button';
     add.className = 'budget-tab budget-tab--add';
-    add.textContent = '+ Szenario';
-    add.title = 'Neues Szenario als Kopie des aktuellen anlegen';
+    add.textContent = t('budget.addScenario');
+    add.title = t('budget.addScenarioTitle');
     add.addEventListener('click', budgetSzenarioHinzufuegen);
     bar.appendChild(add);
 
@@ -818,7 +821,7 @@ function zeichneBudgetTabs() {
 
 function zeichneBudgetSzenario() {
     zeichneBudgetTabs();
-    document.getElementById('budgetSzenarioName').value = budgetSzenario().name;
+    document.getElementById('budgetSzenarioName').value = lokalisiereStandard(budgetSzenario().name);
     document.getElementById('budgetSzenarioLoeschen').hidden = budgetSzenarien.length < 2;
     document.getElementById('budgetUebernahmeInfo').hidden = true;
     zeichneBudgetListe('einnahmen');
@@ -837,7 +840,7 @@ function budgetSzenarioWechseln(idx) {
 // Neues Szenario startet als Kopie des aktuellen – meist ändern sich nur einzelne Einnahmen
 function budgetSzenarioHinzufuegen() {
     const kopie = JSON.parse(JSON.stringify(budgetSzenario()));
-    kopie.name = `Szenario ${budgetSzenarien.length + 1}`;
+    kopie.name = t('budget.scenarioNumbered', { n: budgetSzenarien.length + 1 });
     budgetSzenarien.push(kopie);
     budgetAktiv = budgetSzenarien.length - 1;
     zeichneBudgetSzenario();
@@ -850,7 +853,7 @@ function budgetSzenarioHinzufuegen() {
 function budgetSzenarioLoeschen() {
     if (budgetSzenarien.length < 2) return;
     const name = budgetSzenarioName(budgetSzenario(), budgetAktiv);
-    if (!confirm(`Szenario „${name}“ mit allen Einnahmen und Sparraten löschen?`)) return;
+    if (!confirm(t('budget.confirmDeleteScenario', { name }))) return;
     budgetSzenarien.splice(budgetAktiv, 1);
     budgetAktiv = Math.max(0, budgetAktiv - 1);
     zeichneBudgetSzenario();
@@ -868,15 +871,15 @@ function zeichneBudgetListe(typ) {
         zeile.className = 'budget-row' + (typ === 'sparen' ? ' budget-row--spar' : '');
         zeile.dataset.index = idx;
         zeile.innerHTML = `
-            <input type="text" class="fix-name-input budget-name" placeholder="${cfg.label} benennen" aria-label="Bezeichnung">
-            <input type="number" class="budget-betrag" step="0.01" inputmode="decimal" placeholder="0" aria-label="Betrag">
-            ${typ === 'sparen' ? `<select class="budget-einheit" aria-label="Einheit">
+            <input type="text" class="fix-name-input budget-name" placeholder="${t(cfg.placeholderKey)}" aria-label="${t('common.description')}">
+            <input type="number" class="budget-betrag" step="0.01" inputmode="decimal" placeholder="0" aria-label="${t('common.amount')}">
+            ${typ === 'sparen' ? `<select class="budget-einheit" aria-label="${t('budget.unitAria')}">
                 <option value="eur">€</option>
                 <option value="proz">%</option>
             </select>` : ''}
-            <button type="button" class="entry-delete" aria-label="${cfg.label} löschen" title="${cfg.label} löschen">×</button>
+            <button type="button" class="entry-delete" aria-label="${t(cfg.deleteKey)}" title="${t(cfg.deleteKey)}">×</button>
         `;
-        zeile.querySelector('.budget-name').value = e.name;
+        zeile.querySelector('.budget-name').value = lokalisiereStandard(e.name);
         zeile.querySelector('.budget-betrag').value = e.betrag;
         if (typ === 'sparen') zeile.querySelector('.budget-einheit').value = e.einheit;
         body.appendChild(zeile);
@@ -895,17 +898,19 @@ function addBudgetZeile(typ) {
 
 // Übernimmt die Sparrate aus dem Zinseszins-Rechner und die Eigenbeiträge der Altersvorsorgedepots
 function sparratenUebernehmen() {
-    const quellen = [{ name: 'ETF-Sparplan', betrag: Math.max(0, zinsZahl('zinsSparrate')) }];
-    for (let nr = 1; nr <= avdAnzahl(); nr++) {
-        const p = avdParameter(nr);
-        quellen.push({ name: `AVD ${p.name}`, betrag: p.beitrag });
+    const quellen = [{ name: t('default.etfPlan'), betrag: Math.max(0, zinsZahl('zinsSparrate')) }];
+    if (avdAktiviert()) {
+        for (let nr = 1; nr <= avdAnzahl(); nr++) {
+            const p = avdParameter(nr);
+            quellen.push({ name: `AVD ${p.name}`, betrag: p.beitrag });
+        }
     }
 
     const sparen = budgetSzenario().sparen;
     let neu = 0, aktualisiert = 0;
     quellen.forEach(q => {
         if (!(q.betrag > 0)) return;
-        const vorhanden = sparen.find(s => s.name.trim().toLowerCase() === q.name.toLowerCase());
+        const vorhanden = sparen.find(s => lokalisiereStandard(s.name).trim().toLowerCase() === q.name.toLowerCase());
         if (vorhanden) {
             if (vorhanden.einheit !== 'eur' || parseFloat(vorhanden.betrag) !== q.betrag) aktualisiert++;
             vorhanden.betrag = String(q.betrag);
@@ -919,9 +924,9 @@ function sparratenUebernehmen() {
     updateBudget(true);
     const info = document.getElementById('budgetUebernahmeInfo');
     info.hidden = false;
-    if (!quellen.some(q => q.betrag > 0)) info.textContent = 'In den Rechnern sind noch keine Sparraten eingetragen.';
-    else if (neu === 0 && aktualisiert === 0) info.textContent = 'Die Sparraten aus den Rechnern sind schon übernommen.';
-    else info.textContent = `${neu} neu übernommen${aktualisiert ? `, ${aktualisiert} aktualisiert` : ''}.`;
+    if (!quellen.some(q => q.betrag > 0)) info.textContent = t('budget.importNone');
+    else if (neu === 0 && aktualisiert === 0) info.textContent = t('budget.importAlready');
+    else info.textContent = t(aktualisiert ? 'budget.importDoneUpdated' : 'budget.importDone', { neu, akt: aktualisiert });
 }
 
 function richteBudgetEin() {
@@ -963,7 +968,7 @@ function richteBudgetEin() {
             const idx = Number(btn.closest('.budget-row').dataset.index);
             const e = liste[idx];
             const hatInhalt = e.name.trim() !== '' || (parseFloat(e.betrag) || 0) !== 0;
-            if (hatInhalt && !confirm(`${cfg.label} „${e.name || 'ohne Namen'}“ löschen?`)) return;
+            if (hatInhalt && !confirm(t(cfg.confirmKey, { name: e.name || t('common.noName') }))) return;
             liste.splice(idx, 1);
             zeichneBudgetListe(typ);
             updateBudget(true);
@@ -986,7 +991,7 @@ function fixFuerSzenario(sz) {
     sz.fixExtra.forEach(e => {
         const wert = parseFloat(e.betrag) || 0;
         summe += wert;
-        posten.push({ name: e.name || 'Zusätzliche Fixkosten', wert, angepasst: true });
+        posten.push({ name: e.name || t('budget.fixExtraDefault'), wert, angepasst: true });
     });
     const anzahlAnpassungen = Object.keys(sz.fix).length + sz.fixExtra.length;
     return { summe, posten, angepasst: anzahlAnpassungen > 0, anzahlAnpassungen };
@@ -1000,13 +1005,13 @@ function zeichneBudgetFix() {
     const sz = budgetSzenario();
     const liste = document.getElementById('budgetFixListe');
     liste.innerHTML = '';
-    const turnusText = { quartal: 'Quartal', jaehrlich: 'jährlich' };
+    const turnusText = { quartal: t('budget.fixQuarterly'), jaehrlich: t('budget.fixYearly') };
     const sichtbar = fixkostenPosten.filter(f => f.monatlich !== 0 || sz.fix[String(f.index)] !== undefined);
 
     if (sichtbar.length === 0) {
         const p = document.createElement('p');
         p.className = 'diff-hint';
-        p.textContent = 'Im Fixkosten-Tab sind noch keine Beträge eingetragen.';
+        p.textContent = t('budget.fixNone');
         liste.appendChild(p);
     }
 
@@ -1017,11 +1022,11 @@ function zeichneBudgetFix() {
         row.dataset.index = f.index;
         row.innerHTML = `
             <span class="budget-fixname"><span class="budget-fixtitel"></span><span class="eink-quelle-sub"></span></span>
-            <input type="number" class="budget-fixbetrag" step="0.01" inputmode="decimal" aria-label="Betrag pro Monat in diesem Szenario">
-            <button type="button" class="budget-fixreset" title="Auf den Wert aus dem Fixkosten-Tab zurücksetzen" aria-label="Zurücksetzen">↺</button>
+            <input type="number" class="budget-fixbetrag" step="0.01" inputmode="decimal" aria-label="${t('budget.fixRowAria')}">
+            <button type="button" class="budget-fixreset" title="${t('budget.fixResetTitle')}" aria-label="${t('budget.fixResetAria')}">↺</button>
         `;
         row.querySelector('.budget-fixtitel').textContent = f.name + (turnusText[f.turnus] ? ` (${turnusText[f.turnus]})` : '');
-        row.querySelector('.eink-quelle-sub').textContent = `Tab: ${formatEuro(f.monatlich)} €`;
+        row.querySelector('.eink-quelle-sub').textContent = t('budget.fixTab', { v: euro(f.monatlich) });
         const input = row.querySelector('.budget-fixbetrag');
         input.placeholder = String(rund2(f.monatlich));
         input.value = eigen !== undefined ? eigen : String(rund2(f.monatlich));
@@ -1035,9 +1040,9 @@ function zeichneBudgetFix() {
         row.className = 'budget-fixrow extra';
         row.dataset.extra = idx;
         row.innerHTML = `
-            <input type="text" class="fix-name-input budget-fixextraname" placeholder="Fixkosten benennen" aria-label="Bezeichnung">
-            <input type="number" class="budget-fixbetrag" step="0.01" inputmode="decimal" placeholder="0" aria-label="Betrag pro Monat">
-            <button type="button" class="entry-delete" title="Löschen" aria-label="Zusätzliche Fixkosten löschen">×</button>
+            <input type="text" class="fix-name-input budget-fixextraname" placeholder="${t('budget.fixExtraPlaceholder')}" aria-label="${t('common.description')}">
+            <input type="number" class="budget-fixbetrag" step="0.01" inputmode="decimal" placeholder="0" aria-label="${t('budget.amountPerMonth')}">
+            <button type="button" class="entry-delete" title="${t('common.delete')}" aria-label="${t('budget.fixExtraDelete')}">×</button>
         `;
         row.querySelector('.budget-fixextraname').value = e.name;
         row.querySelector('.budget-fixbetrag').value = e.betrag;
@@ -1059,7 +1064,7 @@ function addBudgetFixExtra() {
 function budgetFixZuruecksetzen() {
     const sz = budgetSzenario();
     if (!fixFuerSzenario(sz).angepasst) return;
-    if (!confirm('Alle Fixkosten-Anpassungen in diesem Szenario zurücksetzen? Zusätzliche Posten werden gelöscht.')) return;
+    if (!confirm(t('budget.confirmResetAll'))) return;
     sz.fix = {};
     sz.fixExtra = [];
     zeichneBudgetFix();
@@ -1119,7 +1124,7 @@ function richteBudgetFixEin() {
         const idx = Number(btn.closest('.budget-fixrow').dataset.extra);
         const e = liste[idx];
         const hatInhalt = e.name.trim() !== '' || (parseFloat(e.betrag) || 0) !== 0;
-        if (hatInhalt && !confirm(`Fixkosten „${e.name || 'ohne Namen'}“ aus diesem Szenario löschen?`)) return;
+        if (hatInhalt && !confirm(t('budget.confirmDeleteFixExtra', { name: e.name || t('common.noName') }))) return;
         liste.splice(idx, 1);
         zeichneBudgetFix();
         updateBudget(true);
@@ -1147,14 +1152,14 @@ function updateBudget(speichern) {
     const r = berechneSzenario(sz);
     const fixInfo = fixFuerSzenario(sz);
     const fix = r.fix;
-    const prozent = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+    const prozent = (v) => formatZahl(v, 1);
 
     document.getElementById('budgetEinnahmenSumme').textContent = formatEuro(r.einnahmen);
     document.getElementById('budgetFixSumme').textContent = '−' + formatEuro(fix) + ' €';
     const diffTab = fix - fixkostenMonatlich;
     document.getElementById('budgetFixHerkunft').textContent = fixInfo.angepasst
-        ? `in diesem Szenario angepasst · Fixkosten-Tab: ${formatEuro(fixkostenMonatlich)} € (${mitVorzeichen(diffTab)})`
-        : 'aus dem Fixkosten-Tab (Quartal und Jahr auf den Monat umgerechnet)';
+        ? t('budget.fixedAdjusted', { tab: euro(fixkostenMonatlich), diff: mitVorzeichen(diffTab) })
+        : t('budget.fixedSource');
     document.getElementById('budgetFixBox').classList.toggle('angepasst', fixInfo.angepasst);
     document.getElementById('budgetFixReset').hidden = !fixInfo.angepasst;
     const nachFixEl = document.getElementById('budgetNachFix');
@@ -1163,14 +1168,14 @@ function updateBudget(speichern) {
     document.getElementById('budgetSparSumme').textContent = formatEuro(r.sparen);
 
     document.getElementById('budgetResultLabel').textContent =
-        `${budgetSzenarioName(budgetSzenario(), budgetAktiv)}: frei verfügbar nach Fixkosten und Sparen`;
+        t('budget.resultLabel', { name: budgetSzenarioName(budgetSzenario(), budgetAktiv) });
     document.getElementById('budgetSaldo').textContent = formatEuro(r.frei);
     document.getElementById('budgetResultBox').classList.toggle('minus', r.frei < 0);
 
-    let sub = `${formatEuro(r.einnahmen)} € − ${formatEuro(fix)} € Fixkosten − ${formatEuro(r.sparen)} € Sparen`;
+    let sub = t('budget.saldoSub', { ein: euro(r.einnahmen), fix: euro(fix), spar: euro(r.sparen) });
     if (r.einnahmen > 0) {
-        sub += ` · Sparquote ${prozent(r.sparen / r.einnahmen * 100)} % der Einnahmen`;
-        if (r.frei < 0) sub += ' · mehr verplant als vorhanden';
+        sub += t('budget.savingsRate', { q: prozent(r.sparen / r.einnahmen * 100) });
+        if (r.frei < 0) sub += t('budget.overplanned');
     }
     document.getElementById('budgetSaldoSub').textContent = sub;
 
@@ -1183,11 +1188,12 @@ function updateBudget(speichern) {
 
     // Hinweis, falls Sparen bereits als Fixkosten eingetragen ist
     const hinweis = document.getElementById('budgetDoppeltHinweis');
-    const sparFix = fixInfo.posten.filter(f => f.wert > 0 && /spar|depot|etf/i.test(f.name)).map(f => ({ name: f.name, monatlich: f.wert }));
+    const sparFix = fixInfo.posten.filter(f => f.wert > 0 && /spar|depot|etf|saving|invest/i.test(f.name)).map(f => ({ name: f.name, monatlich: f.wert }));
     hinweis.hidden = !(r.sparen > 0 && sparFix.length > 0);
     if (!hinweis.hidden) {
-        hinweis.textContent = `Hinweis: Unter den Fixkosten steht schon ${sparFix.map(f => `„${f.name}“ (${formatEuro(f.monatlich)} €)`).join(', ')}. ` +
-            'Wenn das dieselben Sparraten sind, werden sie doppelt abgezogen.';
+        hinweis.textContent = t('budget.doubleWarning', {
+            liste: sparFix.map(f => `${zitat(f.name)} (${euro(f.monatlich)})`).join(', ')
+        });
     }
 
     // Vergleich aller Szenarien
@@ -1196,20 +1202,20 @@ function updateBudget(speichern) {
     const vglBody = document.getElementById('budgetVergleichBody');
     vglBody.innerHTML = '';
     if (budgetSzenarien.length >= 2) {
-        const kurz = (v) => Math.round(v).toLocaleString('de-DE') + ' €';
+        const kurz = (v) => formatZahl(Math.round(v), 0) + ' €';
         budgetSzenarien.forEach((sz, idx) => {
             const e = berechneSzenario(sz);
             const row = document.createElement('div');
             row.className = 'budget-vgl-row' + (idx === budgetAktiv ? ' active' : '');
             row.innerHTML = '<span class="budget-vgl-name"></span><span></span><span></span><span></span><span></span>';
             const zellen = row.children;
-            zellen[0].textContent = budgetSzenarioName(sz, idx) + (fixFuerSzenario(sz).angepasst ? ' · Fixkosten angepasst' : '');
+            zellen[0].textContent = budgetSzenarioName(sz, idx) + (fixFuerSzenario(sz).angepasst ? t('budget.adjustedTag') : '');
             zellen[1].textContent = kurz(e.einnahmen);
             zellen[2].textContent = kurz(e.fix);
             zellen[3].textContent = kurz(e.sparen);
             zellen[4].textContent = kurz(e.frei);
             zellen[4].className = e.frei < 0 ? 'diff-neg' : 'diff-pos';
-            row.title = 'Szenario öffnen';
+            row.title = t('budget.openScenario');
             row.addEventListener('click', () => budgetSzenarioWechseln(idx));
             vglBody.appendChild(row);
         });
@@ -1221,8 +1227,7 @@ function toggleBudget() {
     const btn = document.getElementById('budgetToggleBtn');
     const oeffnen = container.style.display !== 'block';
     container.style.display = oeffnen ? 'block' : 'none';
-    btn.textContent = oeffnen ? 'Einnahmen & Fixkosten ausblenden' : 'Einnahmen & Fixkosten anzeigen';
-    btn.setAttribute('aria-expanded', String(oeffnen));
+    setzeToggle(btn, oeffnen);
     if (oeffnen) {
         zeichneBudgetTabs();
         updateBudget(false);
@@ -1264,7 +1269,7 @@ function depotwertFinden() {
     let idx = -1;
     for (let i = 0; i < standardAssets.length; i++) {
         const nameEl = document.getElementById(`assetName${i}`);
-        if (nameEl && /depot|etf|aktie/i.test(nameEl.value)) { idx = i; break; }
+        if (nameEl && /depot|etf|aktie|stock|portfolio|brokerage/i.test(nameEl.value)) { idx = i; break; }
     }
     if (idx < 0) idx = 2;
     const nameEl = document.getElementById(`assetName${idx}`);
@@ -1288,7 +1293,7 @@ function aktualisiereDepotHinweis() {
     }
 
     const gleich = Math.abs((parseFloat(startEl.value) || 0) - depot.wert) < 0.005;
-    btn.textContent = gleich ? '' : `Depotwert übernehmen (${depot.name}: ${formatEuro(depot.wert)} €)`;
+    btn.textContent = gleich ? '' : t('zins.takeDepot', { name: depot.name, wert: euro(depot.wert) });
 
     if (zinsGeladen) updateZinsRechner(false);
 }
@@ -1327,7 +1332,7 @@ function updateZinsRechner(speichern) {
         Object.entries(ZINS_FELDER).forEach(([id, key]) => setCloudItem(key, document.getElementById(id).value));
         const btn = document.getElementById('zinsDepotBtn');
         const depot = depotwertFinden();
-        btn.textContent = Math.abs(start - depot.wert) < 0.005 ? '' : `Depotwert übernehmen (${depot.name}: ${formatEuro(depot.wert)} €)`;
+        btn.textContent = Math.abs(start - depot.wert) < 0.005 ? '' : t('zins.takeDepot', { name: depot.name, wert: euro(depot.wert) });
     }
 
     const verlauf = berechneZinseszins(start, sparrate, rendite, jahre, inflation);
@@ -1335,16 +1340,14 @@ function updateZinsRechner(speichern) {
     const sparSumme = ende.eingezahlt - start;
     const ertraege = ende.nominal - ende.eingezahlt;
     const istReal = zinsAnsicht === 'real';
-    const jahreText = `${jahre} ${jahre === 1 ? 'Jahr' : 'Jahren'}`;
-    const inflText = inflation.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+    const laufzeit = jahreText(jahre);
+    const inflText = formatZahl(inflation, 2);
 
-    document.getElementById('zinsResultLabel').textContent = istReal
-        ? `Endwert nach ${jahreText} – in heutiger Kaufkraft`
-        : `Endwert nach ${jahreText}`;
+    document.getElementById('zinsResultLabel').textContent = t(istReal ? 'zins.resultLabelReal' : 'zins.resultLabel', { jahre: laufzeit });
     document.getElementById('zinsEndwert').textContent = formatEuro(istReal ? ende.real : ende.nominal);
     document.getElementById('zinsResultSub').textContent = istReal
-        ? `nominal ${formatEuro(ende.nominal)} € · bei ${inflText} % Inflation p. a.`
-        : `inflationsbereinigt ${formatEuro(ende.real)} € (${inflText} % Inflation p. a.)`;
+        ? t('zins.subReal', { nom: euro(ende.nominal), infl: inflText })
+        : t('zins.subNominal', { real: euro(ende.real), infl: inflText });
     document.getElementById('zinsResultBox').classList.toggle('real', istReal);
 
     document.getElementById('zinsAusStart').textContent = formatEuro(start) + ' €';
@@ -1364,7 +1367,7 @@ function updateZinsRechner(speichern) {
 }
 
 function zeichneZinsChart(verlauf) {
-    const labels = verlauf.map(p => p.jahr === 0 ? 'Heute' : `${p.jahr} J.`);
+    const labels = verlauf.map(p => p.jahr === 0 ? t('zins.chartToday') : t('zins.chartYear', { n: p.jahr }));
     const nominal = verlauf.map(p => Math.round(p.nominal * 100) / 100);
     const real = verlauf.map(p => Math.round(p.real * 100) / 100);
     const eingezahlt = verlauf.map(p => Math.round(p.eingezahlt * 100) / 100);
@@ -1387,9 +1390,9 @@ function zeichneZinsChart(verlauf) {
             data: {
                 labels,
                 datasets: [
-                    { ...linie, label: 'Nominal', data: nominal, borderColor: cSpruce, backgroundColor: cSpruceSoft, pointBackgroundColor: cSpruce },
-                    { ...linie, label: 'Inflationsbereinigt', data: real, borderColor: cOchre, backgroundColor: cOchreSoft, pointBackgroundColor: cOchre },
-                    { ...linie, label: 'Eingezahlt', data: eingezahlt, borderColor: cMuted, backgroundColor: 'transparent', pointBackgroundColor: cMuted, borderWidth: 1.5, borderDash: [5, 4], fill: false }
+                    { ...linie, label: t('zins.chartNominal'), data: nominal, borderColor: cSpruce, backgroundColor: cSpruceSoft, pointBackgroundColor: cSpruce },
+                    { ...linie, label: t('zins.chartReal'), data: real, borderColor: cOchre, backgroundColor: cOchreSoft, pointBackgroundColor: cOchre },
+                    { ...linie, label: t('zins.chartPaidIn'), data: eingezahlt, borderColor: cMuted, backgroundColor: 'transparent', pointBackgroundColor: cMuted, borderWidth: 1.5, borderDash: [5, 4], fill: false }
                 ]
             },
             options: {
@@ -1401,7 +1404,7 @@ function zeichneZinsChart(verlauf) {
                         beginAtZero: true,
                         grid: { color: cGrid },
                         border: { display: false },
-                        ticks: { callback: (v) => Number(v).toLocaleString('de-DE', { notation: 'compact', maximumFractionDigits: 1 }) + ' €' }
+                        ticks: { callback: (v) => Number(v).toLocaleString(zahlLocale(), { notation: 'compact', maximumFractionDigits: 1 }) + ' €' }
                     }
                 },
                 plugins: {
@@ -1445,8 +1448,7 @@ function toggleZinsRechner() {
     const btn = document.getElementById('zinsToggleBtn');
     const oeffnen = container.style.display !== 'block';
     container.style.display = oeffnen ? 'block' : 'none';
-    btn.textContent = oeffnen ? 'Zinseszins-Rechner ausblenden' : 'Zinseszins-Rechner anzeigen';
-    btn.setAttribute('aria-expanded', String(oeffnen));
+    setzeToggle(btn, oeffnen);
     if (oeffnen) updateZinsRechner(false);
 }
 
@@ -1480,10 +1482,10 @@ const AVD_FELDER = {
     avdSteuerRente: 'steuerrente'
 };
 const AVD_STANDARD = {
-    name: 'Mein Depot', alter: '30', rente: '67', beitrag: '150', kinder: '0', kinderjahre: '0',
+    name: 'avd.default1', alter: '30', rente: '67', beitrag: '150', kinder: '0', kinderjahre: '0',
     rendite: '5', kosten: '0.5', inflation: '2', steuerheute: '', steuerrente: '20'
 };
-const AVD_STANDARD_NAME_2 = 'Zweites Depot';
+const AVD_STANDARD_NAME_2 = 'avd.default2';   // Schlüssel in i18n.js
 const AVD_GRUNDZULAGE_STUFE1 = 360;   // 50 % Zulage bis hier
 const AVD_GEFOERDERT_MAX = 1800;      // 25 % Zulage bis hier
 const AVD_KINDERZULAGE_MAX = 300;     // je Kind und Jahr
@@ -1510,13 +1512,16 @@ function avdAnzahl() {
 // Gespeicherter Wert eines Depots als Text, sonst Standardwert
 function avdWert(nr, feld) {
     const v = getCloudItem(avdPrefix(nr) + feld);
+    if (feld === 'name') {
+        if (v !== null) return lokalisiereStandard(String(v));
+        return t(nr === 2 ? AVD_STANDARD_NAME_2 : AVD_STANDARD.name);
+    }
     if (v !== null) return String(v);
-    if (feld === 'name' && nr === 2) return AVD_STANDARD_NAME_2;
     return AVD_STANDARD[feld];
 }
 
 function avdName(nr) {
-    return avdWert(nr, 'name').trim() || (nr === 1 ? AVD_STANDARD.name : AVD_STANDARD_NAME_2);
+    return avdWert(nr, 'name').trim() || t(nr === 1 ? AVD_STANDARD.name : AVD_STANDARD_NAME_2);
 }
 
 function grundzulage(jahresbeitrag) {
@@ -1647,7 +1652,7 @@ function zeichneAvdProfile() {
         const add = document.createElement('button');
         add.type = 'button';
         add.className = 'seg-btn seg-add';
-        add.textContent = '+ Zweites Depot';
+        add.textContent = t('avd.addSecond');
         add.addEventListener('click', avdDepotHinzufuegen);
         bar.appendChild(add);
     }
@@ -1672,7 +1677,7 @@ function avdDepotHinzufuegen() {
 
 function avdDepotEntfernen() {
     if (avdAnzahl() < 2) return;
-    if (!confirm(`Depot „${avdName(2)}“ mit allen Eingaben entfernen?`)) return;
+    if (!confirm(t('avd.confirmRemove', { name: avdName(2) }))) return;
     Object.values(AVD_FELDER).forEach(feld => setCloudItem('avd2_' + feld, null));
     setCloudItem('avd2_bonus', null);
     setCloudItem('avd2_aktiv', null);
@@ -1692,36 +1697,36 @@ function updateAvdRechner(speichern) {
 
     const p = avdParameter(avdAktiv);
     const r = berechneAvd(p);
-    const prozent = (v) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 });
+    const prozent = (v) => formatZahl(v, 1);
 
     // Zulagen pro Jahr als Info
     const gz = grundzulage(r.jahresbeitrag);
     const kz = kinderzulage(r.jahresbeitrag, p.kinder);
     const quote = r.jahresbeitrag > 0 ? (gz + kz) / r.jahresbeitrag * 100 : 0;
-    let info = `Jahresbeitrag ${euro(r.jahresbeitrag)} → Grundzulage ${euro(gz)}`;
-    if (p.kinder > 0) info += ` + Kinderzulage ${euro(kz)}`;
-    info += ` pro Jahr (Förderquote ${prozent(quote)} %).`;
+    let info = t('avd.infoBase', { beitrag: euro(r.jahresbeitrag), gz: euro(gz) });
+    if (p.kinder > 0) info += t('avd.infoKids', { kz: euro(kz) });
+    info += t('avd.infoRate', { q: prozent(quote) });
     if (r.jahresbeitrag < AVD_GEFOERDERT_MAX) {
-        info += ` Volle Grundzulage ab ${formatEuro(AVD_GEFOERDERT_MAX / 12)} € im Monat.`;
+        info += t('avd.infoFullBase', { v: formatEuro(AVD_GEFOERDERT_MAX / 12) });
     }
     if (p.kinder > 0 && r.jahresbeitrag < Math.min(AVD_GEFOERDERT_MAX, p.kinder * AVD_KINDERZULAGE_MAX)) {
-        info += ` Volle Kinderzulage ab ${euro(Math.min(AVD_GEFOERDERT_MAX, p.kinder * AVD_KINDERZULAGE_MAX))} Eigenbeitrag im Jahr.`;
+        info += t('avd.infoFullKids', { v: euro(Math.min(AVD_GEFOERDERT_MAX, p.kinder * AVD_KINDERZULAGE_MAX)) });
     }
     const infoEl = document.getElementById('avdZulageInfo');
     infoEl.textContent = info;
     if (avdAnzahl() === 2 && avdParameter(1).kinder > 0 && avdParameter(2).kinder > 0) {
         const warn = document.createElement('span');
         warn.className = 'calc-warn';
-        warn.textContent = 'Achtung: In beiden Depots sind Kinder eingetragen. Die Kinderzulage gibt es je Kind nur einmal.';
+        warn.textContent = t('avd.kidsWarning');
         infoEl.appendChild(warn);
     }
 
     const zulagen = r.summeGrund + r.summeKind + r.summeBonus;
     const ertrag = r.avd - r.eigen - zulagen;
 
-    document.getElementById('avdResultLabel').textContent = `${p.name}: Depotwert mit ${p.rente} (nach ${p.jahre} ${p.jahre === 1 ? 'Jahr' : 'Jahren'})`;
+    document.getElementById('avdResultLabel').textContent = t('avd.resultLabel', { name: p.name, alter: p.rente, jahre: jahreText(p.jahre) });
     document.getElementById('avdEndwert').textContent = formatEuro(r.avd);
-    document.getElementById('avdResultSub').textContent = `in heutiger Kaufkraft ${euro(r.avd / r.inflFaktor)} · vor Steuern`;
+    document.getElementById('avdResultSub').textContent = t('avd.resultSub', { v: euro(r.avd / r.inflFaktor) });
 
     document.getElementById('avdAusEigen').textContent = euro(r.eigen);
     document.getElementById('avdAusZulagen').textContent = '+' + euro(zulagen);
@@ -1739,15 +1744,17 @@ function updateAvdRechner(speichern) {
 
     // Auszahlplan
     document.getElementById('avdRateNetto').textContent = formatEuro(r.rateNetto);
-    document.getElementById('avdRateSub').textContent =
-        `${euro(r.rateBrutto)} brutto von ${p.rente} bis ${AVD_AUSZAHLPLAN_BIS} (${r.monate / 12} Jahre) · in heutiger Kaufkraft ca. ${euro(r.rateNetto / r.inflFaktor)} netto`;
+    document.getElementById('avdRateSub').textContent = t('avd.rateSub', {
+        brutto: euro(r.rateBrutto), von: p.rente, bis: AVD_AUSZAHLPLAN_BIS,
+        jahre: jahreText(r.monate / 12, true), real: euro(r.rateNetto / r.inflFaktor)
+    });
 
     // Vergleich ETF-Depot: gesamt und monatlich
     document.getElementById('avdEtfNetto').textContent = euro(r.nettoEtf);
-    document.getElementById('avdEtfRate').textContent = euro(r.rateEtfNetto) + ' / Monat';
-    document.getElementById('avdEtfSub').textContent =
-        `Vor Steuern ${euro(r.etf)} · Vorsprung Altersvorsorgedepot nach Steuern: ` +
-        `${mitVorzeichen(r.nettoAvd - r.nettoEtf)} gesamt, ${mitVorzeichen(r.rateNetto - r.rateEtfNetto)} pro Monat`;
+    document.getElementById('avdEtfRate').textContent = t('avd.etfRate', { v: euro(r.rateEtfNetto) });
+    document.getElementById('avdEtfSub').textContent = t('avd.etfSub', {
+        etf: euro(r.etf), ges: mitVorzeichen(r.nettoAvd - r.nettoEtf), mon: mitVorzeichen(r.rateNetto - r.rateEtfNetto)
+    });
 
     if (document.getElementById('avdContainer').style.display === 'block') {
         zeichneAvdChart(r.verlauf);
@@ -1782,28 +1789,28 @@ function zeichneAvdChart(verlauf) {
             data: {
                 labels,
                 datasets: [
-                    { ...linie, label: 'Altersvorsorgedepot', data: avd, borderColor: cSpruce, backgroundColor: cSpruceSoft, pointBackgroundColor: cSpruce, borderWidth: 2.5, fill: true },
-                    { ...linie, label: 'ETF-Depot ohne Zulagen', data: etf, borderColor: cOchre, backgroundColor: 'transparent', pointBackgroundColor: cOchre, borderWidth: 1.5, fill: false },
-                    { ...linie, label: 'Eigenbeiträge', data: eigen, borderColor: cMuted, backgroundColor: 'transparent', pointBackgroundColor: cMuted, borderWidth: 1.5, borderDash: [5, 4], fill: false }
+                    { ...linie, label: t('avd.chartAvd'), data: avd, borderColor: cSpruce, backgroundColor: cSpruceSoft, pointBackgroundColor: cSpruce, borderWidth: 2.5, fill: true },
+                    { ...linie, label: t('avd.chartEtf'), data: etf, borderColor: cOchre, backgroundColor: 'transparent', pointBackgroundColor: cOchre, borderWidth: 1.5, fill: false },
+                    { ...linie, label: t('avd.chartOwn'), data: eigen, borderColor: cMuted, backgroundColor: 'transparent', pointBackgroundColor: cMuted, borderWidth: 1.5, borderDash: [5, 4], fill: false }
                 ]
             },
             options: {
                 responsive: true,
                 interaction: { mode: 'index', intersect: false },
                 scales: {
-                    x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12 }, title: { display: true, text: 'Alter' } },
+                    x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkipPadding: 12 }, title: { display: true, text: t('avd.chartAge') } },
                     y: {
                         beginAtZero: true,
                         grid: { color: cGrid },
                         border: { display: false },
-                        ticks: { callback: (v) => Number(v).toLocaleString('de-DE', { notation: 'compact', maximumFractionDigits: 1 }) + ' €' }
+                        ticks: { callback: (v) => Number(v).toLocaleString(zahlLocale(), { notation: 'compact', maximumFractionDigits: 1 }) + ' €' }
                     }
                 },
                 plugins: {
                     legend: { position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line', boxWidth: 18 } },
                     tooltip: {
                         callbacks: {
-                            title: (items) => `Alter ${items[0].label}`,
+                            title: (items) => t('avd.chartAgeTooltip', { n: items[0].label }),
                             label: (item) => `${item.dataset.label}: ${formatEuro(item.parsed.y)} €`
                         }
                     }
@@ -1824,8 +1831,7 @@ function toggleAvdRechner() {
     const btn = document.getElementById('avdToggleBtn');
     const oeffnen = container.style.display !== 'block';
     container.style.display = oeffnen ? 'block' : 'none';
-    btn.textContent = oeffnen ? 'Altersvorsorgedepot-Rechner ausblenden' : 'Altersvorsorgedepot-Rechner anzeigen';
-    btn.setAttribute('aria-expanded', String(oeffnen));
+    setzeToggle(btn, oeffnen);
     if (oeffnen) updateAvdRechner(false);
 }
 
@@ -1869,12 +1875,13 @@ function einkQuelleAn(key, standard) {
 }
 
 function einkQuellenListe() {
-    const liste = [
-        { key: 'eink_q_depot', std: true, text: 'ETF-Depot (Zinseszins-Rechner)' },
-        { key: 'eink_q_avd1', std: true, text: `${avdName(1)} (Altersvorsorgedepot)` }
-    ];
-    if (avdAnzahl() === 2) liste.push({ key: 'eink_q_avd2', std: true, text: `${avdName(2)} (Altersvorsorgedepot)` });
-    liste.push({ key: 'eink_q_rest', std: false, text: 'Übriges Vermögen aus der Liste (ohne Depot)' });
+    const liste = [{ key: 'eink_q_depot', std: true, text: t('eink.srcEtf') }];
+    if (avdAktiviert()) {
+        for (let nr = 1; nr <= avdAnzahl(); nr++) {
+            liste.push({ key: 'eink_q_avd' + nr, std: true, text: t('eink.srcAvd', { name: avdName(nr) }) });
+        }
+    }
+    liste.push({ key: 'eink_q_rest', std: false, text: t('eink.srcRest') });
     return liste;
 }
 
@@ -1940,17 +1947,17 @@ function updateEinkommen(speichern) {
         const ende = v[v.length - 1];
         const rate = annuitaet(ende.nominal, rM, monate) * etfNettoFaktor(ende.nominal, ende.eingezahlt);
         const erhalt = Math.max(0, ende.nominal * rM) * (1 - ETF_STEUER_AUF_GEWINN);
-        zeilen.push({ name: 'ETF-Depot', nom: rate, real: rate / faktor, info: `${euro(ende.nominal)} mit ${rente} · Entnahme bis ${bis}` });
+        zeilen.push({ name: t('eink.rowEtf'), nom: rate, real: rate / faktor, info: t('eink.rowEtfInfo', { wert: euro(ende.nominal), alter: rente, bis }) });
         erhaltNom += erhalt; erhaltReal += erhalt / faktor;
     }
 
     // Altersvorsorgedepots: Auszahlplan bis 85 ab dem jeweiligen Auszahlungsalter
-    for (let nr = 1; nr <= avdAnzahl(); nr++) {
+    for (let nr = 1; nr <= (avdAktiviert() ? avdAnzahl() : 0); nr++) {
         if (!einkQuelleAn('eink_q_avd' + nr, true)) continue;
         const p = avdParameter(nr);
         const r = berechneAvd(p);
-        let info = `${euro(r.avd)} mit ${p.rente} · Auszahlung ${p.rente}–${AVD_AUSZAHLPLAN_BIS}`;
-        if (nr === 1 && p.rente !== rente) info += ` (Ruhestand oben: ${rente})`;
+        let info = t('eink.rowAvdInfo', { wert: euro(r.avd), alter: p.rente, von: p.rente, bis: AVD_AUSZAHLPLAN_BIS });
+        if (nr === 1 && p.rente !== rente) info += t('eink.retireAbove', { n: rente });
         zeilen.push({ name: p.name, nom: r.rateNetto, real: r.rateNetto / r.inflFaktor, info });
         erhaltNom += r.rateNetto; erhaltReal += r.rateNetto / r.inflFaktor;
     }
@@ -1963,7 +1970,7 @@ function updateEinkommen(speichern) {
         const wert = heute * Math.pow(1 + rr / 100, jahre);
         const rate = annuitaet(wert, rM, monate);
         const erhalt = Math.max(0, wert * rM);
-        zeilen.push({ name: 'Übriges Vermögen', nom: rate, real: rate / faktor, info: `${euro(wert)} mit ${rente} · Entnahme bis ${bis} · vor Steuern` });
+        zeilen.push({ name: t('eink.rowRest'), nom: rate, real: rate / faktor, info: t('eink.rowRestInfo', { wert: euro(wert), alter: rente, bis }) });
         erhaltNom += erhalt; erhaltReal += erhalt / faktor;
     }
 
@@ -1971,13 +1978,11 @@ function updateEinkommen(speichern) {
     const summeNom = zeilen.reduce((s, z) => s + z.nom, 0);
     const summeReal = zeilen.reduce((s, z) => s + z.real, 0);
 
-    document.getElementById('einkResultLabel').textContent = istReal
-        ? `Monatliches Einkommen ab ${rente} – in heutiger Kaufkraft`
-        : `Monatliches Einkommen ab ${rente}`;
+    document.getElementById('einkResultLabel').textContent = t(istReal ? 'eink.resultLabelReal' : 'eink.resultLabel', { n: rente });
     document.getElementById('einkSumme').textContent = formatEuro(istReal ? summeReal : summeNom);
     document.getElementById('einkResultSub').textContent = istReal
-        ? `nominal ${euro(summeNom)} · nach Steuern (geschätzt)`
-        : `inflationsbereinigt ${euro(summeReal)} · nach Steuern (geschätzt)`;
+        ? t('eink.subReal', { v: euro(summeNom) })
+        : t('eink.subNominal', { v: euro(summeReal) });
     document.getElementById('einkResultBox').classList.toggle('real', istReal);
 
     const box = document.getElementById('einkZeilen');
@@ -1985,7 +1990,7 @@ function updateEinkommen(speichern) {
     if (zeilen.length === 0) {
         const p = document.createElement('p');
         p.className = 'diff-hint';
-        p.textContent = 'Keine Quelle ausgewählt.';
+        p.textContent = t('eink.none');
         box.appendChild(p);
     }
     zeilen.forEach(z => {
@@ -1999,8 +2004,7 @@ function updateEinkommen(speichern) {
     });
 
     document.getElementById('einkErhalt').textContent = formatEuro(istReal ? erhaltReal : erhaltNom);
-    document.getElementById('einkErhaltSub').textContent =
-        'ETF-Depot und übriges Vermögen: nur die Erträge entnehmen, das Kapital bleibt erhalten. Altersvorsorgedepots zahlen weiter ihren Auszahlplan bis 85.';
+    document.getElementById('einkErhaltSub').textContent = t(avdAktiviert() ? 'eink.preserveSub' : 'eink.preserveSubNoAvd');
 }
 
 function setEinkAnsicht(ansicht) {
@@ -2021,8 +2025,7 @@ function toggleEinkommen() {
     const btn = document.getElementById('einkToggleBtn');
     const oeffnen = container.style.display !== 'block';
     container.style.display = oeffnen ? 'block' : 'none';
-    btn.textContent = oeffnen ? 'Monatliches Einkommen ausblenden' : 'Monatliches Einkommen aus Privatvermögen anzeigen';
-    btn.setAttribute('aria-expanded', String(oeffnen));
+    setzeToggle(btn, oeffnen);
     if (oeffnen) {
         zeichneEinkQuellen();
         updateEinkommen(false);
@@ -2041,6 +2044,88 @@ function loadEinkData() {
     updateEinkommen(false);
 }
 
+// ===== Einstellungen: Sprache und Altersvorsorgedepot =====
+// einstellung_avd (in "haushalt") = true/false – gilt für den ganzen Haushalt.
+// Nicht gesetzt: an, wenn Deutsch gewählt ist oder schon Depot-Daten gespeichert sind.
+function avdAktiviert() {
+    const v = getCloudItem('einstellung_avd');
+    if (v !== null) return istWahr(v);
+    return SPRACHE === 'de' || getCloudItem('avd_beitrag') !== null;
+}
+
+function wendeAvdEinstellungAn() {
+    const an = avdAktiviert();
+    const btn = document.getElementById('avdToggleBtn');
+    const container = document.getElementById('avdContainer');
+    btn.hidden = !an;
+    if (!an) {
+        container.style.display = 'none';
+        setzeToggle(btn, false);
+    }
+    document.getElementById('einstellungAvd').checked = an;
+
+    // Texte, die das Altersvorsorgedepot erwähnen
+    const intro = document.getElementById('einkIntro');
+    intro.dataset.i18n = an ? 'eink.intro' : 'eink.introNoAvd';
+    intro.textContent = t(intro.dataset.i18n);
+    const hint = document.getElementById('einkHint');
+    hint.dataset.i18n = an ? 'eink.hint' : 'eink.hintNoAvd';
+    hint.textContent = t(hint.dataset.i18n);
+
+    if (einkGeladen) {
+        zeichneEinkQuellen();
+        updateEinkommen(false);
+    }
+}
+
+function toggleEinstellungen() {
+    const karte = document.getElementById('einstellungen');
+    const btn = document.getElementById('settingsBtn');
+    karte.hidden = !karte.hidden;
+    btn.setAttribute('aria-expanded', String(!karte.hidden));
+}
+
+function richteEinstellungenEin() {
+    document.getElementById('einstellungAvd').addEventListener('change', (ev) => {
+        setCloudItem('einstellung_avd', ev.target.checked);
+        wendeAvdEinstellungAn();
+    });
+}
+
+let datenGeladen = false;
+
+// Nach einem Sprachwechsel alle berechneten Texte, Vorgabenamen und Diagramme neu aufbauen
+window.nachSprachwechsel = function () {
+    if (!datenGeladen) return;
+
+    // Vorgabenamen in den Listen in die neue Sprache übertragen (eigene Namen bleiben)
+    for (let i = 0; i < ANZAHL_FIXKOSTEN; i++) {
+        const el = document.getElementById(`fixName${i}`);
+        el.value = lokalisiereStandard(el.value);
+    }
+    for (let i = 0; i < standardAssets.length; i++) {
+        const el = document.getElementById(`assetName${i}`);
+        el.value = lokalisiereStandard(el.value);
+    }
+
+    // Diagramme mit neuen Beschriftungen neu erstellen
+    [vermoegenChartInstance, zinsChartInstance, avdChartInstance].forEach(c => { if (c) c.destroy(); });
+    vermoegenChartInstance = zinsChartInstance = avdChartInstance = null;
+    resetChartSelection();
+    if (document.getElementById('chartContainer').style.display === 'block') updateAssetChart();
+
+    zeichneListe('ausgabe');
+    calcSum();
+    calcFixkostenSum();
+    calcVermoegenSum(false);
+    zeichneBudgetSzenario();
+    updateBudget(false);
+    aktualisiereDepotHinweis();
+    avdFormularLaden();
+    updateAvdRechner(false);
+    wendeAvdEinstellungAn();
+};
+
 let appEingerichtet = false;
 
 function initApp() {
@@ -2056,6 +2141,9 @@ function initApp() {
 
         createFixkostenRows();
         createVermoegenRows();
+        wendeSpracheAufHtmlAn(document.getElementById('fixkostenBody'));
+        wendeSpracheAufHtmlAn(document.getElementById('assetBody'));
+        richteEinstellungenEin();
         richteBudgetEin();
         richteBudgetFixEin();
 
@@ -2083,7 +2171,9 @@ function initApp() {
         loadZinsData();
         loadAvdData();
         loadEinkData();
+        wendeAvdEinstellungAn();
+        datenGeladen = true;
     }).catch((err) => {
-        console.error("Fehler beim Laden der Daten:", err);
+        console.error(t('app.loadError'), err);
     });
 }

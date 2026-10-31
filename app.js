@@ -1,4 +1,4 @@
-// Die Firebase-Zugangsdaten liegen in firebase-config.js (nicht im Repository, siehe firebase-config.example.js)
+// Die Firebase-Zugangsdaten liegen in firebase-config.js
 if (!window.FIREBASE_CONFIG) {
     document.body.insertAdjacentHTML('afterbegin',
         '<p style="padding:16px;color:#B02A3F;font-family:system-ui">firebase-config.js fehlt. ' +

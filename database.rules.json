@@ -1,0 +1,18 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "haushalt": {
+      ".read": "auth != null && (auth.uid === 'UID_PERSON_1' || auth.uid === 'UID_PERSON_2')",
+      ".write": "auth != null && (auth.uid === 'UID_PERSON_1' || auth.uid === 'UID_PERSON_2')"
+    },
+
+    "loginStats": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}

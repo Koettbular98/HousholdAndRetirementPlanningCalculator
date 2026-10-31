@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <!-- Viewport mit Zoom-Schutz für Mobilgeräte -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Haushaltsrechner, Fixkosten & Vermögen</title>
+
+    <!-- App-Icon -->
+    <link rel="apple-touch-icon" href="pictures/appBildv2.png">
+
+    <!-- Optional: Standard-Favicon für Browser-Tabs (PC / Mac) -->
+    <link rel="icon" type="image/png" href="pictures/appBildv2.png">
+
+    <!-- Web-App-Einstellungen für iOS -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Haushalt">
+    <meta name="theme-color" content="#F3F5F2" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#121A18" media="(prefers-color-scheme: dark)">
+
+    <!-- Schrift -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400..700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDKs (v8) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <!-- Chart.js für das Diagramm -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* ---------- Design-Tokens ---------- */
+        :root {
+            --paper: #F3F5F2;
+            --surface: #FFFFFF;
+            --field: #FFFFFF;
+            --ink: #1D2B27;
+            --muted: #5F6E69;
+            --line: #DCE3DE;
+            --track: #E4E9E5;
+            --spruce: #1F5C4E;
+            --spruce-soft: #E3EEEA;
+            --on-spruce: #FFFFFF;
+            --lingon: #B02A3F;
+            --on-lingon: #FFFFFF;
+            --ochre: #A86A12;
+            --ochre-soft: rgba(168, 106, 18, 0.12);
+            --focus-ring: rgba(31, 92, 78, 0.18);
+            --check-border: #A9B6B1;
+            --bar-shadow: 0 10px 24px -10px rgba(20, 52, 44, 0.55);
+            --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%235F6E69' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            --font: "Familjen Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            color-scheme: light dark;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --paper: #121A18;
+                --surface: #19231F;
+                --field: #1E2925;
+                --ink: #E6ECE9;
+                --muted: #98A6A1;
+                --line: #2A3732;
+                --track: #1F2A26;
+                --spruce: #6CC3A8;
+                --spruce-soft: #1E3530;
+                --on-spruce: #0F2A23;
+                --lingon: #F07A8C;
+                --on-lingon: #3A0F17;
+                --ochre: #E2B15E;
+                --ochre-soft: rgba(226, 177, 94, 0.14);
+                --focus-ring: rgba(108, 195, 168, 0.25);
+                --check-border: #4D5C57;
+                --bar-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.8);
+                --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2398A6A1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            }
+        }
+
+        /* ---------- Grundlagen ---------- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            -webkit-text-size-adjust: 100%;
+        }
+
+        html, body {
+            width: 100%;
+            overflow-x: clip; /* clip statt hidden, damit die fixierten Leisten funktionieren */
+        }
+
+        body {
+            font-family: var(--font);
+            background-color: var(--paper);
+            color: var(--ink);
+            line-height: 1.4;
+            min-height: 100vh;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button, input, select {
+            font: inherit;
+            color: inherit;
+        }
+
+        button:focus-visible {
+            outline: 2px solid var(--spruce);
+            outline-offset: 2px;
+        }
+
+        /* ---------- Eingabefelder ---------- */
+        select,
+        input[type="text"],
+        input[type="number"],
+        input[type="email"],
+        input[type="password"] {
+            width: 100%;
+            font-size: 16px;
+            padding: 9px 10px;
+            border: 1.5px solid var(--line);
+            border-radius: 10px;
+            background-color: var(--field);
+            color: var(--ink);
+            outline: none;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        select {
+            -webkit-appearance: none;
+            appearance: none;
+            background-image: var(--chevron);
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 28px;
+            cursor: pointer;
+        }
+
+        input[type="number"] {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        select:focus,
+        input:focus {
+            border-color: var(--spruce);
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        /* ---------- Login ---------- */
+        #login-card {
+            width: calc(100% - 32px);
+            max-width: 400px;
+            margin: max(8vh, 24px) auto;
+            padding: 32px 24px 28px;
+            background-color: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+        }
+
+        .login-logo {
+            max-width: 250px;
+            height: auto;
+            display: block;
+            margin: 0 auto 20px auto;
+            border-radius: 8px;
+        }
+
+        .login-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.015em;
+            text-align: center;
+            margin-bottom: 22px;
+        }
+
+        .field {
+            display: block;
+            margin-bottom: 14px;
+        }
+
+        .field-label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .login-btn {
+            width: 100%;
+            margin-top: 6px;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background-color: var(--spruce);
+            color: var(--on-spruce);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: filter 0.15s ease;
+        }
+
+        .login-btn:hover {
+            filter: brightness(1.08);
+        }
+
+        .error-message {
+            color: var(--lingon);
+            font-size: 0.875rem;
+            text-align: center;
+            margin-top: 12px;
+        }
+
+        .error-message:empty {
+            display: none;
+        }
+
+        /* ---------- App-Rahmen ---------- */
+        #app-container {
+            display: none;
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 0 16px 28px;
+        }
+
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 18px 0 6px;
+        }
+
+        .app-title {
+            font-size: clamp(1rem, 4.2vw, 1.15rem);
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .logout-btn {
+            background: none;
+            border: none;
+            color: var(--lingon);
+            font-size: 0.9rem;
+            font-weight: 600;
+            padding: 8px 2px;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+
+        /* Tabs als Segment-Schalter, bleiben beim Scrollen oben */
+        .tab-bar {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            background-color: var(--paper);
+            padding: 10px 0 14px;
+        }
+
+        .tab-nav {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            padding: 4px;
+            background-color: var(--track);
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            padding: 9px 4px;
+            border: none;
+            border-radius: 9px;
+            background-color: transparent;
+            color: var(--muted);
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--ink);
+        }
+
+        .tab-btn.active {
+            background-color: var(--surface);
+            color: var(--ink);
+            box-shadow: 0 1px 3px rgba(20, 40, 34, 0.12);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .tab-logo {
+            width: 150px;
+            max-width: 45%;
+            height: auto;
+            display: block;
+            margin: 4px auto 14px auto;
+        }
+
+        /* Schwarze Konturen des Logos auf dunklem Grund sichtbar halten */
+        @media (prefers-color-scheme: dark) {
+            .tab-logo {
+                filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.6));
+            }
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .section-intro {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-bottom: 18px;
+        }
+
+        /* ---------- Monat/Jahr als Überschrift ---------- */
+        .date-picker {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 2px;
+            margin-bottom: 18px;
+        }
+
+        .date-picker select {
+            width: auto;
+            border: none;
+            background-color: transparent;
+            background-position: right 6px center;
+            padding: 2px 26px 2px 6px;
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            color: var(--ink);
+            border-radius: 8px;
+            field-sizing: content;
+        }
+
+        .date-picker #jahrSelect {
+            font-weight: 500;
+            color: var(--muted);
+        }
+
+        .date-picker select:focus {
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        /* ---------- Listen (Tabellen als Raster) ---------- */
+        .ledger,
+        .ledger thead,
+        .ledger tbody,
+        .ledger tfoot {
+            display: block;
+            width: 100%;
+        }
+
+        .ledger tr {
+            display: grid;
+            grid-template-columns: var(--cols);
+            gap: 8px;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--line);
+            transition: opacity 0.15s ease;
+        }
+
+        .ledger th,
+        .ledger td {
+            display: block;
+            min-width: 0;
+            padding: 0;
+            text-align: left;
+            font-weight: 500;
+        }
+
+        .ledger--fix    { --cols: minmax(0, 1fr) 6.25rem 7.5rem; }
+        .ledger--asset  { --cols: minmax(0, 1fr) 8.5rem; }
+
+        .header-row th {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--muted);
+            padding-bottom: 2px;
+        }
+
+        .col-right  { text-align: right !important; }
+        .col-center { text-align: center !important; }
+
+        /* Bezeichnungen wirken wie Text, werden beim Tippen zum Feld */
+        .ledger input.fix-name-input {
+            border-color: transparent;
+            background-color: transparent;
+            padding-left: 4px;
+            text-overflow: ellipsis;
+        }
+
+        .ledger input.fix-name-input:hover {
+            border-color: var(--line);
+        }
+
+        .ledger input.fix-name-input:focus {
+            border-color: var(--spruce);
+            background-color: var(--field);
+        }
+
+        /* ---------- Monatsrechner ---------- */
+        .kontostand-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 9.5rem;
+            gap: 8px;
+            align-items: center;
+            background-color: var(--spruce-soft);
+            border-radius: 14px;
+            padding: 10px 10px 10px 14px;
+            margin-bottom: 8px;
+        }
+
+        .kontostand-row label {
+            font-weight: 600;
+        }
+
+        #kontostand {
+            font-size: 1.15rem;
+            font-weight: 700;
+        }
+
+        .entry-section {
+            margin-top: 22px;
+        }
+
+        .entry-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 4px;
+        }
+
+        .entry-head h3 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+        }
+
+        .entry-open {
+            font-size: 0.875rem;
+            color: var(--muted);
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .entry {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 6.75rem 2.75rem 2rem;
+            gap: 6px;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .entry-labels {
+            font-size: 0.8rem;
+            color: var(--muted);
+            padding: 2px 0 4px;
+        }
+
+        .entry input.fix-name-input {
+            border-color: transparent;
+            background-color: transparent;
+            padding-left: 4px;
+            text-overflow: ellipsis;
+        }
+
+        .entry input.fix-name-input:hover {
+            border-color: var(--line);
+        }
+
+        .entry input.fix-name-input:focus {
+            border-color: var(--spruce);
+            background-color: var(--field);
+        }
+
+        .entry .switch {
+            justify-self: center;
+        }
+
+        .entry-delete {
+            width: 2rem;
+            height: 44px;
+            border: none;
+            background: none;
+            color: var(--check-border);
+            font-size: 1.4rem;
+            line-height: 1;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: color 0.15s ease;
+        }
+
+        .entry-delete:hover,
+        .entry-delete:focus-visible {
+            color: var(--lingon);
+        }
+
+        .entry-empty {
+            padding: 12px 4px;
+            color: var(--muted);
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .entry-empty[hidden] {
+            display: none;
+        }
+
+        .add-btn {
+            width: 100%;
+            margin-top: 10px;
+            padding: 11px;
+            border: 1.5px dashed var(--line);
+            border-radius: 12px;
+            background: none;
+            color: var(--spruce);
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .add-btn:hover {
+            border-color: var(--spruce);
+            background-color: var(--spruce-soft);
+        }
+
+        /* Abgehakte Ausgaben werden durchgestrichen */
+        .entry.abgebucht input[type="text"],
+        .entry.abgebucht input[type="number"] {
+            text-decoration: line-through;
+            text-decoration-thickness: 1.5px;
+            color: var(--muted);
+            background-color: transparent;
+            border-color: transparent;
+        }
+
+        .entry.abgebucht input:focus {
+            border-color: var(--spruce);
+            text-decoration: none;
+        }
+
+        /* Runder Haken statt Schiebeschalter */
+        .switch {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 44px;
+            height: 44px;
+            cursor: pointer;
+        }
+
+        .switch input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .slider {
+            position: relative;
+            width: 26px;
+            height: 26px;
+            border: 2px solid var(--check-border);
+            border-radius: 50%;
+            pointer-events: none;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .slider::before {
+            content: "";
+            position: absolute;
+            left: 7px;
+            top: 3px;
+            width: 6px;
+            height: 11px;
+            border: solid var(--on-spruce);
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg) scale(0);
+            transition: transform 0.15s ease;
+        }
+
+        .switch input:checked + .slider {
+            background-color: var(--spruce);
+            border-color: var(--spruce);
+        }
+
+        .switch input:checked + .slider::before {
+            transform: rotate(45deg) scale(1);
+        }
+
+        .switch input:focus-visible + .slider {
+            outline: 2px solid var(--spruce);
+            outline-offset: 3px;
+        }
+
+        /* ---------- Ergebnisleiste (bleibt unten sichtbar) ---------- */
+        .result-bar,
+        .ledger .result-row {
+            position: sticky;
+            bottom: calc(env(safe-area-inset-bottom) + 12px);
+            z-index: 5;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 12px;
+            margin-top: 16px;
+            padding: 14px 16px;
+            border: none;
+            border-radius: 16px;
+            background-color: var(--spruce);
+            color: var(--on-spruce);
+            box-shadow: var(--bar-shadow);
+            opacity: 1 !important;
+            display: grid;
+            align-items: center;
+            transition: background-color 0.2s ease;
+        }
+
+        .ledger tfoot {
+            position: sticky;
+            bottom: calc(env(safe-area-inset-bottom) + 12px);
+            z-index: 5;
+        }
+
+        .ledger tfoot .result-row {
+            position: relative;
+            bottom: auto;
+        }
+
+        .result-label,
+        .ledger .result-row th {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .sub-text {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 400;
+            opacity: 0.8;
+        }
+
+        .result-val {
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .result-bar.minus,
+        .ledger .result-row.minus {
+            background-color: var(--lingon);
+            color: var(--on-lingon);
+        }
+
+        /* ---------- Diagramm ---------- */
+        .chart-btn {
+            width: 100%;
+            margin-top: 20px;
+            padding: 13px;
+            border: 1.5px solid var(--line);
+            border-radius: 12px;
+            background-color: var(--surface);
+            color: var(--ink);
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+        }
+
+        .chart-btn:hover {
+            border-color: var(--spruce);
+        }
+
+        .chart-container {
+            display: none;
+            margin-top: 12px;
+            padding: 16px;
+            background-color: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+        }
+
+        .chart-hint {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        #chartDiffOutput {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--line);
+        }
+
+        .diff-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 3px 0;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .diff-total {
+            margin-top: 4px;
+            padding-top: 8px;
+            border-top: 1px dashed var(--line);
+            font-weight: 700;
+        }
+
+        .diff-pos { color: var(--spruce); }
+        .diff-neg { color: var(--lingon); }
+
+        .diff-hint {
+            margin-top: 4px;
+            font-size: 0.85rem;
+            color: var(--muted);
+        }
+
+        .text-btn {
+            margin-top: 6px;
+            padding: 8px 0;
+            background: none;
+            border: none;
+            color: var(--lingon);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        /* ---------- Zinseszins-Rechner ---------- */
+        .calc-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 10px;
+            align-items: end;
+        }
+
+        .calc-field {
+            display: block;
+            min-width: 0;
+        }
+
+        .calc-field--wide {
+            grid-column: 1 / -1;
+        }
+
+        .calc-field .field-label {
+            font-size: 0.8rem;
+            margin-bottom: 4px;
+        }
+
+        .calc-depot-btn {
+            grid-column: 1 / -1;
+            margin-top: -8px;
+            padding: 4px 0;
+            text-align: left;
+            color: var(--spruce);
+            font-size: 0.85rem;
+        }
+
+        .calc-depot-btn:empty {
+            display: none;
+        }
+
+        .seg {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            padding: 4px;
+            margin: 18px 0 12px;
+            background-color: var(--track);
+            border-radius: 12px;
+        }
+
+        .seg-btn {
+            padding: 8px 4px;
+            border: none;
+            border-radius: 9px;
+            background-color: transparent;
+            color: var(--muted);
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s ease, color 0.15s ease;
+        }
+
+        .seg-btn.active {
+            background-color: var(--surface);
+            color: var(--ink);
+            box-shadow: 0 1px 3px rgba(20, 40, 34, 0.12);
+        }
+
+        .calc-result {
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            border-radius: 14px;
+            background-color: var(--spruce);
+            color: var(--on-spruce);
+            transition: background-color 0.2s ease;
+        }
+
+        .calc-result.real {
+            background-color: var(--ochre);
+            color: #FFFFFF;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .calc-result.real { color: #2A1C05; }
+        }
+
+        .calc-result-label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .calc-result-val {
+            display: block;
+            font-size: 1.7rem;
+            font-weight: 700;
+            letter-spacing: -0.01em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .calc-result-sub {
+            display: block;
+            font-size: 0.8rem;
+            opacity: 0.85;
+        }
+
+        .calc-real { color: var(--ochre); }
+
+        /* hidden-Attribut immer respektieren (auch bei display:flex/grid) */
+        [hidden] {
+            display: none !important;
+        }
+
+        #avdContainer .diff-row strong {
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        #zinsContainer .diff-row span:last-child,
+        #avdContainer .diff-row span:last-child {
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        /* ---------- Altersvorsorgedepot-Rechner ---------- */
+        .calc-intro {
+            font-size: 0.85rem;
+            color: var(--muted);
+            margin-bottom: 14px;
+        }
+
+        .calc-sub {
+            font-size: 0.95rem;
+            font-weight: 700;
+            margin: 18px 0 10px;
+        }
+
+        .calc-check {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .calc-info {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background-color: var(--spruce-soft);
+            font-size: 0.875rem;
+        }
+
+        .calc-box {
+            margin: 14px 0 4px;
+            padding: 12px 14px;
+            border: 1.5px solid var(--line);
+            border-radius: 14px;
+        }
+
+        .calc-box-title {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .calc-box-val {
+            display: block;
+            font-size: 1.3rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .calc-box-sub {
+            display: block;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        #avdChart {
+            margin-top: 14px;
+        }
+
+        .seg--profile {
+            grid-template-columns: none;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(0, 1fr);
+            margin: 0 0 14px;
+        }
+
+        .seg--profile .seg-btn {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .seg-btn.seg-add {
+            color: var(--spruce);
+        }
+
+        .avd-remove-btn {
+            margin-top: 2px;
+            font-size: 0.85rem;
+        }
+
+        .eink-quelle-sub {
+            display: block;
+            font-size: 0.78rem;
+            color: var(--muted);
+        }
+
+        #einkContainer .diff-row span:last-child {
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        #einkZeilen .diff-row {
+            align-items: baseline;
+        }
+
+        .calc-warn {
+            display: block;
+            margin-top: 6px;
+            color: var(--lingon);
+        }
+
+
+        #zinsChart {
+            margin-top: 14px;
+        }
+
+        /* ---------- Einnahmen & Fixkosten ---------- */
+        .budget-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 7.5rem 2rem;
+            gap: 6px;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .budget-row input.fix-name-input {
+            border-color: transparent;
+            background-color: transparent;
+            padding-left: 4px;
+            text-overflow: ellipsis;
+        }
+
+        .budget-row input.fix-name-input:hover {
+            border-color: var(--line);
+        }
+
+        .budget-row input.fix-name-input:focus {
+            border-color: var(--spruce);
+            background-color: var(--field);
+        }
+
+        .budget-fix {
+            margin-top: 18px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background-color: var(--track);
+        }
+
+        .budget-fix .diff-row {
+            align-items: baseline;
+        }
+
+        .budget-fix strong {
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .budget-details summary {
+            margin-top: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--spruce);
+            cursor: pointer;
+        }
+
+        .budget-details .diff-row {
+            font-size: 0.875rem;
+            color: var(--muted);
+            padding: 2px 0;
+        }
+
+        .budget-details .diff-row span:first-child {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .budget-details .diff-row span:last-child {
+            white-space: nowrap;
+        }
+
+        .calc-result.minus {
+            background-color: var(--lingon);
+            color: var(--on-lingon);
+        }
+
+        .budget-bar {
+            display: flex;
+            height: 10px;
+            margin-top: 4px;
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: var(--track);
+        }
+
+        .budget-bar-fix {
+            background-color: var(--lingon);
+            transition: width 0.2s ease;
+        }
+
+        .budget-bar-frei {
+            background-color: var(--spruce);
+            transition: width 0.2s ease;
+        }
+
+        .budget-legend {
+            display: flex;
+            gap: 16px;
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .budget-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 5px;
+            border-radius: 50%;
+        }
+
+        .budget-dot--fix  { background-color: var(--lingon); }
+        .budget-dot--frei { background-color: var(--spruce); }
+
+        /* Szenario-Tabs */
+        .budget-tabs {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 2px 2px 6px;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .budget-tabs::-webkit-scrollbar {
+            display: none;
+        }
+
+        .budget-tab {
+            flex: 0 0 auto;
+            max-width: 12rem;
+            padding: 7px 14px;
+            border: 1.5px solid var(--line);
+            border-radius: 999px;
+            background-color: var(--surface);
+            color: var(--ink);
+            font-size: 0.875rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+            transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+        }
+
+        .budget-tab.active {
+            background-color: var(--spruce);
+            border-color: var(--spruce);
+            color: var(--on-spruce);
+        }
+
+        .budget-tab--add {
+            border-style: dashed;
+            color: var(--spruce);
+            background: none;
+        }
+
+        .budget-row--spar {
+            grid-template-columns: minmax(0, 1fr) 6.5rem 4.75rem 2rem;
+        }
+
+        .budget-row select {
+            padding-left: 10px;
+            padding-right: 24px;
+            background-position: right 8px center;
+        }
+
+        .budget-zwischen {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background-color: var(--spruce-soft);
+            font-weight: 600;
+        }
+
+        .budget-zwischen strong {
+            white-space: nowrap;
+        }
+
+        .budget-bar-spar {
+            background-color: var(--ochre);
+            transition: width 0.2s ease;
+        }
+
+        .budget-dot--spar { background-color: var(--ochre); }
+
+        #budgetDoppeltHinweis {
+            font-size: 0.85rem;
+        }
+
+        .budget-vgl-row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 2px 6px;
+            padding: 6px 0;
+            border-bottom: 1px solid var(--line);
+            font-size: 0.85rem;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+        }
+
+        .budget-vgl-row span {
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .budget-vgl-row .budget-vgl-name {
+            grid-column: 1 / -1;
+            text-align: left;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .budget-vgl-head {
+            color: var(--muted);
+            font-size: 0.78rem;
+            cursor: default;
+        }
+
+        .budget-vgl-row.active .budget-vgl-name::before {
+            content: "▸ ";
+            color: var(--spruce);
+        }
+
+        .budget-vgl-row.active span:not(.budget-vgl-name) {
+            font-weight: 700;
+        }
+
+        .budget-vgl-row:last-child {
+            border-bottom: none;
+        }
+
+        /* Fixkosten je Szenario */
+        .budget-fix.angepasst {
+            background-color: var(--ochre-soft);
+        }
+
+        .budget-fix.angepasst #budgetFixHerkunft {
+            color: var(--ochre);
+        }
+
+        .budget-fixrow {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 6.5rem 2rem;
+            gap: 6px;
+            align-items: center;
+            padding: 3px 0;
+        }
+
+        .budget-fixname {
+            min-width: 0;
+            font-size: 0.875rem;
+        }
+
+        .budget-fixtitel {
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .budget-fixname .eink-quelle-sub {
+            display: none;
+        }
+
+        .budget-fixrow.angepasst .budget-fixname .eink-quelle-sub {
+            display: block;
+        }
+
+        .budget-fixrow input[type="number"] {
+            padding-top: 6px;
+            padding-bottom: 6px;
+        }
+
+        .budget-fixrow.angepasst input[type="number"] {
+            border-color: var(--ochre);
+            font-weight: 700;
+        }
+
+        .budget-fixrow.extra input.fix-name-input {
+            border-color: transparent;
+            background-color: transparent;
+            padding: 6px 4px;
+            font-size: 0.875rem;
+        }
+
+        .budget-fixrow.extra input.fix-name-input:focus {
+            border-color: var(--spruce);
+            background-color: var(--field);
+        }
+
+        .budget-fixreset {
+            width: 2rem;
+            height: 36px;
+            border: none;
+            background: none;
+            color: var(--ochre);
+            font-size: 1.15rem;
+            cursor: pointer;
+            border-radius: 8px;
+            visibility: hidden;
+        }
+
+        .budget-fixrow.angepasst .budget-fixreset {
+            visibility: visible;
+        }
+
+        .budget-fixrow .entry-delete {
+            height: 36px;
+        }
+
+        .add-btn--small {
+            margin-top: 8px;
+            padding: 8px;
+            font-size: 0.875rem;
+        }
+
+        #budgetFixReset {
+            display: block;
+            font-size: 0.85rem;
+        }
+
+
+
+        /* ---------- Smartphone ---------- */
+        @media (max-width: 600px) {
+            #app-container {
+                padding: 0 12px 20px;
+            }
+
+            .login-logo {
+                max-width: 250px;
+            }
+
+            .tab-logo {
+                width: 120px;
+            }
+
+            .tab-btn {
+                font-size: 0.85rem;
+            }
+
+            .sub-text {
+                font-size: 0.72rem;
+            }
+
+            .result-label,
+            .ledger .result-row th {
+                font-size: 0.9rem;
+            }
+
+            .date-picker select {
+                font-size: 1.5rem;
+            }
+
+            .section-title {
+                font-size: 1.4rem;
+            }
+
+            .entry { grid-template-columns: minmax(0, 1fr) 5.75rem 2.75rem 1.75rem; gap: 4px; }
+            .entry-delete { width: 1.75rem; }
+            .budget-row { grid-template-columns: minmax(0, 1fr) 6.5rem 1.75rem; gap: 4px; }
+            .budget-row--spar { grid-template-columns: minmax(0, 1fr) 5.5rem 4.5rem 1.75rem; }
+            .budget-vgl-row { font-size: 0.8rem; gap: 2px 4px; }
+            .budget-fixrow { grid-template-columns: minmax(0, 1fr) 5.75rem 1.75rem; gap: 4px; }
+            .ledger--fix   { --cols: minmax(0, 1fr) 4.75rem 7.4rem; gap: 6px; }
+
+            .ledger--fix select {
+                padding-left: 8px;
+                padding-right: 24px;
+                background-position: right 8px center;
+            }
+            .ledger--asset { --cols: minmax(0, 1fr) 7.5rem; }
+
+            .kontostand-row {
+                grid-template-columns: minmax(0, 1fr) 8.5rem;
+            }
+
+            .result-val {
+                font-size: 1.3rem;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition: none !important;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<!-- LOGIN MASK -->
+<div id="login-card">
+    <img src="pictures/loginPicture2.png" alt="Login Logo" class="login-logo">
+    <h2 class="login-title">Anmelden</h2>
+    <form id="login-form" onsubmit="handleLogin(event)" class="login-container">
+        <label class="field">
+            <span class="field-label">E-Mail</span>
+            <input type="email" id="email" class="login-input" autocomplete="username" required>
+        </label>
+        <label class="field">
+            <span class="field-label">Passwort</span>
+            <input type="password" id="password" class="login-input" autocomplete="current-password" required>
+        </label>
+        <button type="submit" class="login-btn">Einloggen</button>
+        <div id="login-error" class="error-message" role="alert"></div>
+    </form>
+</div>
+
+<!-- HAUPT-APP -->
+<div id="app-container">
+    <header class="app-header">
+        <h1 class="app-title">Finanz- & Haushaltsplaner</h1>
+        <button class="logout-btn" onclick="handleLogout()">Abmelden</button>
+    </header>
+
+    <div class="tab-bar">
+        <nav class="tab-nav">
+            <button class="tab-btn active" onclick="openTab('monatTab', this)">Monatsrechner</button>
+            <button class="tab-btn" onclick="openTab('fixkostenTab', this)">Fixkosten</button>
+            <button class="tab-btn" onclick="openTab('vermoegenTab', this)">Vermögen</button>
+        </nav>
+    </div>
+
+    <!-- SEITE 1: MONATSRECHNER -->
+    <section id="monatTab" class="tab-content active">
+        <img src="pictures/koettbular.png" alt="Logo" class="tab-logo">
+
+        <div class="date-picker">
+            <select id="monatSelect" aria-label="Monat">
+                <option value="01">Januar</option>
+                <option value="02">Februar</option>
+                <option value="03">März</option>
+                <option value="04">April</option>
+                <option value="05">Mai</option>
+                <option value="06">Juni</option>
+                <option value="07">Juli</option>
+                <option value="08">August</option>
+                <option value="09">September</option>
+                <option value="10">Oktober</option>
+                <option value="11">November</option>
+                <option value="12">Dezember</option>
+            </select>
+            <select id="jahrSelect" aria-label="Jahr">
+                <option value="2026">2026</option>
+                <option value="2027">2027</option>
+                <option value="2028">2028</option>
+                <option value="2029">2029</option>
+                <option value="2030">2030</option>
+                <option value="2031">2031</option>
+                <option value="2032">2032</option>
+            </select>
+        </div>
+
+        <div class="monat-sheet">
+            <div class="kontostand-row">
+                <label for="kontostand">Kontostand</label>
+                <input type="number" id="kontostand" value="0" step="0.01">
+            </div>
+
+            <!-- Ausgaben -->
+            <div class="entry-section">
+                <div class="entry-head">
+                    <h3>Ausgaben</h3>
+                    <span class="entry-open">offen <span id="ausgabenOffen">0,00</span> €</span>
+                </div>
+                <div class="entry entry-labels" aria-hidden="true">
+                    <span>Bezeichnung</span><span class="col-right">Betrag (€)</span><span class="col-center">Abgeb.</span><span></span>
+                </div>
+                <div id="ausgabenBody" class="entry-list"></div>
+                <p id="ausgabenLeer" class="entry-empty" hidden>Noch keine Ausgaben in diesem Monat.</p>
+                <button type="button" class="add-btn" onclick="addEntry('ausgabe')">+ Ausgabe hinzufügen</button>
+            </div>
+
+            <div class="result-bar" id="monatResultRow">
+                <div class="result-label">
+                    Frei verfügbar diesen Monat
+                    <span class="sub-text">Kontostand minus offene Ausgaben</span>
+                </div>
+                <div class="result-val"><span id="result">0,00</span> €</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- SEITE 2: FIXKOSTEN DOKUMENTATION -->
+    <section id="fixkostenTab" class="tab-content">
+        <img src="pictures/koettbular.png" alt="Logo" class="tab-logo">
+        <h2 class="section-title">Fixkosten</h2>
+
+        <table class="ledger ledger--fix">
+            <thead>
+            <tr class="header-row">
+                <th>Bezeichnung</th>
+                <th class="col-right">Betrag (€)</th>
+                <th>Turnus</th>
+            </tr>
+            </thead>
+            <tbody id="fixkostenBody"></tbody>
+            <tfoot>
+            <tr class="result-row">
+                <th colspan="2">
+                    Fixkosten pro Monat
+                    <span class="sub-text">Durchschnittliche Belastung</span>
+                </th>
+                <td class="result-val"><span id="fixResult">0,00</span> €</td>
+            </tr>
+            </tfoot>
+        </table>
+    </section>
+
+    <!-- SEITE 3: VERMÖGENSÜBERSICHT -->
+    <section id="vermoegenTab" class="tab-content">
+        <img src="pictures/koettbular.png" alt="Logo" class="tab-logo">
+        <h2 class="section-title">Vermögen</h2>
+
+        <table class="ledger ledger--asset">
+            <thead>
+            <tr class="header-row">
+                <th>Kategorie</th>
+                <th class="col-right">Wert (€)</th>
+            </tr>
+            </thead>
+            <tbody id="assetBody"></tbody>
+            <tfoot>
+            <tr class="result-row">
+                <th>Gesamtvermögen</th>
+                <td class="result-val"><span id="totalAssetResult">0,00</span> €</td>
+            </tr>
+            </tfoot>
+        </table>
+
+        <!-- Chart Button & Container -->
+        <button id="chartToggleBtn" class="chart-btn" onclick="toggleAssetChart()" aria-expanded="false" aria-controls="chartContainer">Vermögensentwicklung anzeigen</button>
+        <div id="chartContainer" class="chart-container">
+            <canvas id="assetChart"></canvas>
+            <p class="chart-hint">Tippe zwei Punkte an, um die Differenz zu sehen.</p>
+            <!-- Container für die Differenz-Anzeige -->
+            <div id="chartDiffOutput" style="display: none;"></div>
+        </div>
+
+        <!-- Monatsbudget: Szenarien mit Einnahmen, Fixkosten und Sparraten -->
+        <button id="budgetToggleBtn" class="chart-btn" onclick="toggleBudget()" aria-expanded="false" aria-controls="budgetContainer">Einnahmen &amp; Fixkosten anzeigen</button>
+        <div id="budgetContainer" class="chart-container">
+            <div id="budgetTabs" class="budget-tabs" role="tablist" aria-label="Szenarien"></div>
+
+            <div class="calc-grid" style="margin-top: 12px;">
+                <label class="calc-field calc-field--wide">
+                    <span class="field-label">Name des Szenarios</span>
+                    <input type="text" id="budgetSzenarioName" maxlength="40" placeholder="z. B. Elternzeit">
+                </label>
+            </div>
+            <button type="button" id="budgetSzenarioLoeschen" class="text-btn avd-remove-btn" onclick="budgetSzenarioLoeschen()" hidden>Dieses Szenario löschen</button>
+
+            <!-- Einnahmen -->
+            <div class="entry-head" style="margin-top: 16px;">
+                <h3>Einnahmen</h3>
+                <span class="entry-open">gesamt <span id="budgetEinnahmenSumme">0,00</span> €</span>
+            </div>
+            <div class="budget-row entry-labels" aria-hidden="true">
+                <span>Bezeichnung</span><span class="col-right">€ / Monat</span><span></span>
+            </div>
+            <div id="budgetBody" data-liste="einnahmen"></div>
+            <p id="budgetLeer" class="entry-empty" hidden>Noch keine Einnahmen eingetragen.</p>
+            <button type="button" class="add-btn" onclick="addBudgetZeile('einnahmen')">+ Einnahme hinzufügen</button>
+
+            <!-- Fixkosten -->
+            <div id="budgetFixBox" class="budget-fix">
+                <div class="diff-row">
+                    <span>
+                        Fixkosten pro Monat
+                        <span id="budgetFixHerkunft" class="eink-quelle-sub">aus dem Fixkosten-Tab</span>
+                    </span>
+                    <strong id="budgetFixSumme" class="diff-neg">−0,00 €</strong>
+                </div>
+                <details id="budgetFixDetails" class="budget-details">
+                    <summary>Fixkosten für dieses Szenario anpassen</summary>
+                    <p class="diff-hint">Änderungen gelten nur in diesem Szenario, der Fixkosten-Tab bleibt unverändert. Beträge pro Monat.</p>
+                    <div id="budgetFixListe"></div>
+                    <div id="budgetFixExtra"></div>
+                    <button type="button" class="add-btn add-btn--small" onclick="addBudgetFixExtra()">+ Fixkosten nur für dieses Szenario</button>
+                    <button type="button" id="budgetFixReset" class="text-btn" onclick="budgetFixZuruecksetzen()" hidden>Alle Anpassungen zurücksetzen</button>
+                </details>
+            </div>
+
+            <div class="budget-zwischen diff-row">
+                <span>Frei verfügbar nach Fixkosten</span>
+                <strong id="budgetNachFix">0,00 €</strong>
+            </div>
+
+            <!-- Sparraten -->
+            <div class="entry-head" style="margin-top: 18px;">
+                <h3>Sparraten</h3>
+                <span class="entry-open">gesamt <span id="budgetSparSumme">0,00</span> €</span>
+            </div>
+            <div class="budget-row budget-row--spar entry-labels" aria-hidden="true">
+                <span>Bezeichnung</span><span class="col-right">Betrag</span><span>Einheit</span><span></span>
+            </div>
+            <div id="sparBody" data-liste="sparen"></div>
+            <p id="sparLeer" class="entry-empty" hidden>Noch keine Sparraten in diesem Szenario.</p>
+            <button type="button" class="add-btn" onclick="addBudgetZeile('sparen')">+ Sparrate hinzufügen</button>
+            <button type="button" class="text-btn calc-depot-btn" style="margin-top: 6px;" onclick="sparratenUebernehmen()">Sparraten aus den Rechnern übernehmen</button>
+            <p class="chart-hint" style="margin-top: 2px;">„%“ bezieht sich auf das frei Verfügbare nach Fixkosten.</p>
+            <p id="budgetUebernahmeInfo" class="diff-hint" hidden></p>
+            <p id="budgetDoppeltHinweis" class="calc-warn" hidden></p>
+
+            <!-- Ergebnis -->
+            <div id="budgetResultBox" class="calc-result" style="margin-top: 14px;" aria-live="polite">
+                <span id="budgetResultLabel" class="calc-result-label">Frei verfügbar nach Fixkosten und Sparen</span>
+                <span class="calc-result-val"><span id="budgetSaldo">0,00</span> € / Monat</span>
+                <span id="budgetSaldoSub" class="calc-result-sub"></span>
+            </div>
+
+            <div class="budget-bar" aria-hidden="true">
+                <span id="budgetBarFix" class="budget-bar-fix"></span>
+                <span id="budgetBarSpar" class="budget-bar-spar"></span>
+                <span id="budgetBarFrei" class="budget-bar-frei"></span>
+            </div>
+            <div class="budget-legend" aria-hidden="true">
+                <span><i class="budget-dot budget-dot--fix"></i>Fixkosten</span>
+                <span><i class="budget-dot budget-dot--spar"></i>Sparen</span>
+                <span><i class="budget-dot budget-dot--frei"></i>Frei verfügbar</span>
+            </div>
+
+            <!-- Vergleich aller Szenarien -->
+            <div id="budgetVergleich" class="calc-box" hidden>
+                <span class="calc-box-title">Szenarien im Vergleich</span>
+                <div class="budget-vgl-row budget-vgl-head">
+                    <span>Einnahmen</span><span>Fixkosten</span><span>Sparen</span><span>Frei</span>
+                </div>
+                <div id="budgetVergleichBody"></div>
+            </div>
+        </div>
+
+        <!-- Zinseszins-Rechner -->
+        <button id="zinsToggleBtn" class="chart-btn" onclick="toggleZinsRechner()" aria-expanded="false" aria-controls="zinsContainer">Zinseszins-Rechner anzeigen</button>
+        <div id="zinsContainer" class="chart-container">
+            <div class="calc-grid">
+                <label class="calc-field calc-field--wide">
+                    <span class="field-label">Startkapital / Depotwert (€)</span>
+                    <input type="number" id="zinsStart" step="0.01" min="0" inputmode="decimal" placeholder="0">
+                </label>
+                <button type="button" id="zinsDepotBtn" class="text-btn calc-depot-btn" onclick="depotwertUebernehmen()"></button>
+                <label class="calc-field">
+                    <span class="field-label">Sparrate pro Monat (€)</span>
+                    <input type="number" id="zinsSparrate" step="0.01" min="0" inputmode="decimal" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Rendite pro Jahr (%)</span>
+                    <input type="number" id="zinsRendite" step="0.1" inputmode="decimal" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Laufzeit (Jahre)</span>
+                    <input type="number" id="zinsJahre" step="1" min="1" max="80" inputmode="numeric" placeholder="20">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Inflation pro Jahr (%)</span>
+                    <input type="number" id="zinsInflation" step="0.1" inputmode="decimal" placeholder="0">
+                </label>
+            </div>
+
+            <div class="seg" role="group" aria-label="Darstellung des Endwerts">
+                <button type="button" class="seg-btn active" data-ansicht="nominal" onclick="setZinsAnsicht('nominal')" aria-pressed="true">Nominal</button>
+                <button type="button" class="seg-btn" data-ansicht="real" onclick="setZinsAnsicht('real')" aria-pressed="false">Inflationsbereinigt</button>
+            </div>
+
+            <div id="zinsResultBox" class="calc-result" aria-live="polite">
+                <span id="zinsResultLabel" class="calc-result-label">Endwert</span>
+                <span class="calc-result-val"><span id="zinsEndwert">0,00</span> €</span>
+                <span id="zinsResultSub" class="calc-result-sub"></span>
+            </div>
+
+            <div class="diff-row"><span>Startkapital</span><span id="zinsAusStart">0,00 €</span></div>
+            <div class="diff-row"><span>Summe der Sparraten</span><span id="zinsAusSpar">0,00 €</span></div>
+            <div class="diff-row"><span>Erträge (Zinseszins)</span><span id="zinsAusErtrag">0,00 €</span></div>
+            <div class="diff-row diff-total"><span>Endwert nominal</span><span id="zinsAusNominal">0,00 €</span></div>
+            <div class="diff-row"><span>Kaufkraftverlust durch Inflation</span><span id="zinsAusVerlust" class="diff-neg">0,00 €</span></div>
+            <div class="diff-row"><span>Endwert in heutiger Kaufkraft</span><span id="zinsAusReal" class="calc-real">0,00 €</span></div>
+
+            <canvas id="zinsChart"></canvas>
+            <p class="chart-hint">Annahmen: Sparrate am Monatsende, Erträge werden monatlich wieder angelegt, die Rendite gilt für Startkapital und Sparraten. Steuern und Kosten sind nicht berücksichtigt.</p>
+        </div>
+
+        <!-- Altersvorsorgedepot-Rechner -->
+        <button id="avdToggleBtn" class="chart-btn" onclick="toggleAvdRechner()" aria-expanded="false" aria-controls="avdContainer">Altersvorsorgedepot-Rechner anzeigen</button>
+        <div id="avdContainer" class="chart-container">
+            <p class="calc-intro">Staatlich gefördertes Depot ab 2027: Grundzulage 50 % auf die ersten 360 € und 25 % bis 1.800 € Eigenbeitrag im Jahr (max. 540 €), dazu bis zu 300 € je Kind. Auszahlung frühestens mit 65, als Auszahlplan mindestens bis 85.</p>
+
+            <div id="avdProfilBar" class="seg seg--profile" role="group" aria-label="Depot auswählen"></div>
+
+            <div class="calc-grid">
+                <label class="calc-field calc-field--wide">
+                    <span class="field-label">Name des Depots</span>
+                    <input type="text" id="avdName" maxlength="40" placeholder="z. B. Mein Depot">
+                </label>
+            </div>
+            <button type="button" id="avdRemoveBtn" class="text-btn avd-remove-btn" onclick="avdDepotEntfernen()" hidden>Dieses Depot entfernen</button>
+
+            <h4 class="calc-sub">Ansparphase</h4>
+            <div class="calc-grid">
+                <label class="calc-field">
+                    <span class="field-label">Alter heute</span>
+                    <input type="number" id="avdAlter" step="1" min="16" max="70" inputmode="numeric">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Auszahlung ab Alter</span>
+                    <input type="number" id="avdRente" step="1" min="65" max="80" inputmode="numeric">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Eigenbeitrag pro Monat (€)</span>
+                    <input type="number" id="avdBeitrag" step="1" min="0" inputmode="decimal" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Kinder mit Kinderzulage</span>
+                    <input type="number" id="avdKinder" step="1" min="0" max="10" inputmode="numeric" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Kinderzulage noch (Jahre)</span>
+                    <input type="number" id="avdKinderJahre" step="1" min="0" max="30" inputmode="numeric" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Rendite pro Jahr (%)</span>
+                    <input type="number" id="avdRendite" step="0.1" inputmode="decimal" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Kosten pro Jahr (%)</span>
+                    <input type="number" id="avdKosten" step="0.05" min="0" inputmode="decimal" placeholder="0">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Inflation pro Jahr (%)</span>
+                    <input type="number" id="avdInflation" step="0.1" inputmode="decimal" placeholder="0">
+                </label>
+            </div>
+            <label class="calc-check">
+                <span class="switch">
+                    <input type="checkbox" id="avdBonus" aria-label="Berufseinsteigerbonus">
+                    <span class="slider"></span>
+                </span>
+                Berufseinsteigerbonus (unter 25, einmalig 200 €)
+            </label>
+
+            <h4 class="calc-sub">Steuern <span class="field-label" style="display:inline">(optional)</span></h4>
+            <div class="calc-grid">
+                <label class="calc-field">
+                    <span class="field-label">Grenzsteuersatz heute (%)</span>
+                    <input type="number" id="avdSteuerHeute" step="1" min="0" max="45" inputmode="decimal" placeholder="leer = ohne">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Steuersatz im Ruhestand (%)</span>
+                    <input type="number" id="avdSteuerRente" step="1" min="0" max="45" inputmode="decimal" placeholder="0">
+                </label>
+            </div>
+
+            <div id="avdZulageInfo" class="calc-info"></div>
+
+            <div id="avdResultBox" class="calc-result" style="margin-top: 16px;" aria-live="polite">
+                <span id="avdResultLabel" class="calc-result-label">Depotwert bei Auszahlungsbeginn</span>
+                <span class="calc-result-val"><span id="avdEndwert">0,00</span> €</span>
+                <span id="avdResultSub" class="calc-result-sub"></span>
+            </div>
+
+            <div class="diff-row"><span>Eigenbeiträge</span><span id="avdAusEigen">0,00 €</span></div>
+            <div class="diff-row"><span>Staatliche Zulagen</span><span id="avdAusZulagen" class="diff-pos">0,00 €</span></div>
+            <div class="diff-row"><span>Erträge</span><span id="avdAusErtrag">0,00 €</span></div>
+            <div class="diff-row diff-total"><span>Depotwert</span><span id="avdAusDepot">0,00 €</span></div>
+            <div class="diff-row"><span>Steuer bei Auszahlung (geschätzt)</span><span id="avdAusSteuer" class="diff-neg">0,00 €</span></div>
+            <div class="diff-row"><span>Nach Steuern</span><span id="avdAusNetto">0,00 €</span></div>
+            <div class="diff-row"><span>Nach Steuern in heutiger Kaufkraft</span><span id="avdAusReal" class="calc-real">0,00 €</span></div>
+            <div class="diff-row" id="avdVorteilRow" hidden><span>Zusätzliche Steuererstattung (Ansparphase)</span><span id="avdAusVorteil" class="diff-pos">0,00 €</span></div>
+
+            <div class="calc-box">
+                <span class="calc-box-title">Auszahlplan bis 85</span>
+                <span class="calc-box-val"><span id="avdRateNetto">0,00</span> € / Monat netto</span>
+                <span id="avdRateSub" class="calc-box-sub"></span>
+            </div>
+
+            <div class="calc-box">
+                <span class="calc-box-title">Zum Vergleich: normales ETF-Depot (gleiche Eigenbeiträge, ohne Zulagen)</span>
+                <div class="diff-row"><span>Endwert nach Steuern</span><strong id="avdEtfNetto">0,00 €</strong></div>
+                <div class="diff-row"><span>Auszahlplan bis 85, netto</span><strong id="avdEtfRate">0,00 € / Monat</strong></div>
+                <span id="avdEtfSub" class="calc-box-sub" style="margin-top: 4px;"></span>
+            </div>
+
+            <canvas id="avdChart"></canvas>
+            <p class="chart-hint">Vereinfachte Schätzung: Eigenbeitrag am Monatsende, Zulagen einmal im Jahr gutgeschrieben, Rendite abzüglich Kosten. Im Altersvorsorgedepot werden die Auszahlungen voll mit dem persönlichen Steuersatz versteuert; im ETF-Depot nur die Gewinne mit Abgeltungssteuer (inkl. Soli, 30 % Teilfreistellung, ohne Kirchensteuer, Freibetrag und Vorabpauschale). Die Kinderzulage gibt es je Kind nur für einen Elternteil – trag die Kinder nur in einem Depot ein. Die Steuererstattung aus der Ansparphase ist nicht im Depotwert enthalten. Keine Anlageberatung.</p>
+        </div>
+
+        <!-- Einkommen aus Privatvermögen -->
+        <button id="einkToggleBtn" class="chart-btn" onclick="toggleEinkommen()" aria-expanded="false" aria-controls="einkContainer">Monatliches Einkommen aus Privatvermögen anzeigen</button>
+        <div id="einkContainer" class="chart-container">
+            <p class="calc-intro">Was dein privates Vermögen im Ruhestand pro Monat auszahlen kann. Die Werte kommen aus dem Zinseszins-Rechner, den Altersvorsorgedepots und auf Wunsch aus deiner Vermögensliste.</p>
+
+            <div class="calc-grid">
+                <label class="calc-field">
+                    <span class="field-label">Mein Alter heute</span>
+                    <input type="number" id="einkAlter" step="1" min="16" max="90" inputmode="numeric">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Ruhestand ab Alter</span>
+                    <input type="number" id="einkRente" step="1" min="40" max="85" inputmode="numeric">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Entnahme bis Alter</span>
+                    <input type="number" id="einkBis" step="1" min="60" max="110" inputmode="numeric">
+                </label>
+                <label class="calc-field">
+                    <span class="field-label">Inflation pro Jahr (%)</span>
+                    <input type="number" id="einkInflation" step="0.1" inputmode="decimal" placeholder="0">
+                </label>
+            </div>
+
+            <h4 class="calc-sub">Einbeziehen</h4>
+            <div id="einkQuellen"></div>
+            <div id="einkRestFeld" class="calc-grid" style="margin-top: 8px;" hidden>
+                <label class="calc-field calc-field--wide">
+                    <span class="field-label">Rendite übriges Vermögen pro Jahr (%)</span>
+                    <input type="number" id="einkRestRendite" step="0.1" inputmode="decimal" placeholder="0">
+                </label>
+            </div>
+
+            <div class="seg" id="einkSeg" role="group" aria-label="Darstellung des Einkommens">
+                <button type="button" class="seg-btn active" data-ansicht="nominal" onclick="setEinkAnsicht('nominal')" aria-pressed="true">Nominal</button>
+                <button type="button" class="seg-btn" data-ansicht="real" onclick="setEinkAnsicht('real')" aria-pressed="false">Inflationsbereinigt</button>
+            </div>
+
+            <div id="einkResultBox" class="calc-result" aria-live="polite">
+                <span id="einkResultLabel" class="calc-result-label">Monatliches Einkommen</span>
+                <span class="calc-result-val"><span id="einkSumme">0,00</span> € / Monat</span>
+                <span id="einkResultSub" class="calc-result-sub"></span>
+            </div>
+
+            <div id="einkZeilen"></div>
+
+            <div class="calc-box">
+                <span class="calc-box-title">Variante Kapitalerhalt</span>
+                <span class="calc-box-val"><span id="einkErhalt">0,00</span> € / Monat</span>
+                <span id="einkErhaltSub" class="calc-box-sub"></span>
+            </div>
+
+            <p class="chart-hint">Das freie Depot und das übrige Vermögen wachsen bis zum Ruhestand mit Sparrate und Rendite aus dem Zinseszins-Rechner bzw. der angegebenen Rendite und werden danach bis zum gewählten Alter gleichmäßig entnommen. Die Altersvorsorgedepots zahlen jeweils ab ihrem eigenen Auszahlungsalter bis 85 (Werte aus dem Rechner darüber). Freies Depot nach Abgeltungssteuer auf den Gewinnanteil, Altersvorsorgedepots nach dem dort angegebenen Steuersatz, übriges Vermögen vor Steuern. Gesetzliche Rente ist nicht enthalten.</p>
+        </div>
+    </section>
+</div>
+
+<script src="firebase-config.js?v=13"></script>
+<script src="app.js?v=13"></script>
+</body>
+</html>

@@ -1,20 +1,22 @@
-// Die Firebase-Zugangsdaten liegen in firebase-config.js
-if (!window.FIREBASE_CONFIG) {
-    document.body.insertAdjacentHTML('afterbegin',
-        '<p style="padding:16px;color:#B02A3F;font-family:system-ui">' + t('app.configMissing') + '</p>');
-    throw new Error('firebase-config.js fehlt');
+// The Firebase credentials live in firebase-config.js (not in the repository, see firebase-config.example.js).
+// Without that file the app starts in demo mode with a local test user and sample data (see demo.js).
+let database, auth, demoBackend = null;
+if (DEMO_MODE) {
+    demoBackend = createDemoBackend();
+    database = demoBackend.database;
+    auth = demoBackend.auth;
+} else {
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    database = firebase.database();
+    auth = firebase.auth();
 }
-
-firebase.initializeApp(window.FIREBASE_CONFIG);
-const database = firebase.database();
-const auth = firebase.auth();
 
 let cloudData = {};
 let pendingUpdates = {};
 let saveTimeout = null;
 let vermoegenChartInstance = null;
 
-// UI: Beträge im Format der gewählten Sprache anzeigen (de: 1.234,56 / en: 1,234.56) – reine Anzeige, keine Datenänderung
+// UI: show amounts in the format of the selected language (de: 1.234,56 / en: 1,234.56) – display only, data is unchanged
 function formatEuro(num) {
     return (Number(num) || 0).toLocaleString(zahlLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -23,12 +25,12 @@ function formatZahl(num, nachkomma) {
     return (Number(num) || 0).toLocaleString(zahlLocale(), { maximumFractionDigits: nachkomma });
 }
 
-// ===== Login-Statistik =====
-// Speicherort: loginStats/<uid> = { email, besuche, logins, letzterBesuch, letzterBesuchText, letzterLogin, letzterLoginText }
-//   besuche = wie oft die App geöffnet wurde (eine Zählung pro Sitzung, Neuladen zählt nicht doppelt)
-//   logins  = wie oft sich jemand aktiv mit E-Mail und Passwort angemeldet hat
+// ===== Login statistics =====
+// Stored at: loginStats/<uid> = { email, besuche, logins, letzterBesuch, letzterBesuchText, letzterLogin, letzterLoginText }
+//   besuche = how often the app was opened (counted once per session, reloading does not count again)
+//   logins  = how often someone actively signed in with email and password
 function statistikErfassen(user, art) {
-    if (!user) return;
+    if (!user || DEMO_MODE) return;
     try {
         const ref = database.ref('loginStats/' + user.uid);
         const jetzt = new Date().toLocaleString('de-DE', { timeZone: 'Europe/Berlin' });
@@ -52,13 +54,13 @@ function statistikErfassen(user, art) {
     }
 }
 
-// Zählt pro Sitzung nur einmal (Neuladen der Seite zählt nicht erneut)
+// Counts only once per session (reloading the page does not count again)
 function besuchZaehlen(user) {
     try {
         if (sessionStorage.getItem('besuchGezaehlt') === user.uid) return;
         sessionStorage.setItem('besuchGezaehlt', user.uid);
     } catch (e) {
-        // sessionStorage nicht verfügbar: dann lieber einmal zu oft als gar nicht zählen
+        // sessionStorage unavailable: better to count once too often than not at all
     }
     statistikErfassen(user, 'besuche');
 }
@@ -76,6 +78,30 @@ function handleLogin(e) {
             errorDiv.innerText = t('login.failed') + error.message;
         });
 }
+
+// Demo mode: show the test user on the login screen, mark the app as demo, offer a reset in the settings
+function richteDemoEin() {
+    if (!DEMO_MODE) return;
+    document.getElementById('demoHinweis').hidden = false;
+    document.getElementById('demoBadge').hidden = false;
+    document.getElementById('demoEinstellungen').hidden = false;
+    document.getElementById('email').value = DEMO_EMAIL;
+    document.getElementById('password').value = DEMO_PASSWORD;
+}
+
+function demoStarten() {
+    auth.signInWithEmailAndPassword(DEMO_EMAIL, DEMO_PASSWORD);
+}
+
+function demoZuruecksetzen() {
+    if (!demoBackend || !confirm(t('demo.resetConfirm'))) return;
+    clearTimeout(saveTimeout);
+    pendingUpdates = {};
+    demoBackend.reset();
+    location.reload();
+}
+
+richteDemoEin();
 
 // Logout Handler
 function handleLogout() {
@@ -131,12 +157,12 @@ function openTab(tabName, btn) {
 }
 window.openTab = openTab;
 
-// ===== Monatsrechner: beliebig viele Ausgaben =====
-// Speicherformat (kompatibel zum bisherigen):
-//   Ausgaben:  <prefix>ausgabeName{i}, <prefix>ausgabe{i}, <prefix>status{i}  (wie bisher)
-//   Anzahl:    <prefix>ausgabeAnzahl                                          (neu)
-//   Vorlage:   template_ausgabeName{i} / template_ausgabe{i} / template_ausgabeAnzahl
-// Fehlt die Anzahl (alte Daten), gelten wie früher 16 Ausgaben.
+// ===== Monthly budget: any number of expenses =====
+// Storage format (compatible with the previous one):
+//   Expenses:  <prefix>ausgabeName{i}, <prefix>ausgabe{i}, <prefix>status{i}  (as before)
+//   Count:     <prefix>ausgabeAnzahl                                          (new)
+//   Template:  template_ausgabeName{i} / template_ausgabe{i} / template_ausgabeAnzahl
+// If the count is missing (old data), 16 expenses are assumed as before.
 const ALTE_ANZAHL_AUSGABEN = 16;
 
 const LISTEN = {
@@ -158,7 +184,7 @@ function getPrefix() {
     return `haushalt_${jahrSelect.value}_${monatSelect.value}_`;
 }
 
-// Wie viele Einträge liegen aktuell unter diesem Prefix in der Datenbank?
+// How many entries are currently stored under this prefix in the database?
 function gespeicherteAnzahl(prefix, typ) {
     const cfg = LISTEN[typ];
     const anzahl = getCloudItem(prefix + cfg.countKey);
@@ -179,7 +205,7 @@ function leseListe(prefix, typ) {
             status: istWahr(getCloudItem(prefix + cfg.statusKey + i))
         });
     }
-    // Alte, fest angelegte 16 Zeilen: leere Zeilen am Ende ausblenden
+    // Old fixed 16 rows: hide empty rows at the end
     if (altesFormat) {
         while (eintraege.length > 0) {
             const letzter = eintraege[eintraege.length - 1];
@@ -202,7 +228,7 @@ function speichereListe(prefix, typ, alsVorlage) {
         if (!alsVorlage) setCloudItem(prefix + cfg.statusKey + i, e.status);
     });
 
-    // Gelöschte Einträge auch in der Datenbank entfernen (null = löschen)
+    // Remove deleted entries from the database as well (null = delete)
     for (let i = eintraege.length + 1; i <= vorher; i++) {
         setCloudItem(prefix + cfg.nameKey + i, null);
         setCloudItem(prefix + cfg.betragKey + i, null);
@@ -227,7 +253,7 @@ function erstelleEintragZeile(typ, idx) {
             </label>
             <button type="button" class="entry-delete" aria-label="${t(cfg.deleteKey)}" title="${t(cfg.deleteKey)}">×</button>
         `;
-    // Werte als Eigenschaften setzen (nicht ins HTML), damit Sonderzeichen in Namen nichts kaputt machen
+    // Set values as properties (not in the HTML) so special characters in names cannot break anything
     zeile.querySelector('.entry-name').value = e.name;
     zeile.querySelector('.entry-betrag').value = e.betrag;
     zeile.querySelector('.entry-status').checked = e.status;
@@ -265,7 +291,7 @@ function richteListeEin(typ) {
         calcSum();
     });
 
-    // Abhaken: Ausgabe -> vom Kontostand abziehen, Haken entfernen -> wieder aufrechnen
+    // Tick: subtract the expense from the balance; untick: add it back
     body.addEventListener('change', (ev) => {
         if (!ev.target.classList.contains('entry-status')) return;
         const zeile = ev.target.closest('.entry');
@@ -297,7 +323,7 @@ function richteListeEin(typ) {
 function loadData() {
     const prefix = getPrefix();
 
-    // Hat dieser Monat schon eigene Daten? (neues Format: Anzahl vorhanden, altes Format: ein Name vorhanden)
+    // Does this month already have its own data? (new format: count present, old format: a name present)
     let hatDaten = getCloudItem(prefix + 'ausgabeAnzahl') !== null;
     if (!hatDaten) {
         for (let i = 1; i <= ALTE_ANZAHL_AUSGABEN; i++) {
@@ -308,7 +334,7 @@ function loadData() {
 
     inputKontostand.value = getCloudItem(prefix + 'kontostand') || 0;
 
-    // Neuer Monat: Einträge aus der Vorlage (zuletzt bearbeiteter Monat) übernehmen, alle offen
+    // New month: copy entries from the template (last edited month), all marked as open
     const quelle = hatDaten ? prefix : 'template_';
     Object.keys(LISTEN).forEach(typ => {
         monat[typ] = leseListe(quelle, typ);
@@ -331,7 +357,7 @@ function calcSum() {
         document.getElementById(LISTEN[typ].offenId).innerText = formatEuro(offen[typ]);
     });
 
-    // Speichern
+    // Save
     speichereListe(prefix, 'ausgabe', false);
 
     const hasContent = monat.ausgabe.some(e => e.name.trim() !== '');
@@ -363,7 +389,7 @@ function initDate() {
     jahrSelect.value = getCloudItem('letztesJahr') || aktuellesJahr;
 }
 
-// Vorgabenamen der 16 Fixkosten-Zeilen (Texte in i18n.js)
+// Default names of the 16 fixed-cost rows (texts in i18n.js)
 const ANZAHL_FIXKOSTEN = 16;
 function standardFixkostenName(i) {
     return i < 12 ? t('fixed.default.' + i) : t('fixed.numbered', { n: i + 1 });
@@ -415,7 +441,7 @@ function loadFixkostenData() {
     calcFixkostenSum();
 }
 
-// Monatliche Fixkosten (Summe und Einzelposten) – wird vom Bereich "Einnahmen & Fixkosten" genutzt
+// Monthly fixed costs (total and items) – used by the "Income & fixed costs" section
 let fixkostenMonatlich = 0;
 let fixkostenPosten = [];
 
@@ -457,7 +483,7 @@ function calcFixkostenSum() {
     }
 }
 
-// Vorgabenamen der Vermögenszeilen (Texte in i18n.js)
+// Default names of the asset rows (texts in i18n.js)
 const standardAssets = Array.from({ length: 8 }, (_, i) => 'assets.default.' + i);
 
 function createVermoegenRows() {
@@ -489,7 +515,7 @@ function loadVermoegenData() {
 
     }
 
-    calcVermoegenSum(false); // nur anzeigen – beim Öffnen wird KEIN Datenpunkt angelegt
+    calcVermoegenSum(false); // display only – opening the app does NOT create a history point
 }
 
 function calcVermoegenSum(ausEingabe) {
@@ -519,20 +545,20 @@ function calcVermoegenSum(ausEingabe) {
     if (einkGeladen) updateEinkommen(false);
 }
 
-// Lokales Datum (YYYY-MM-DD), damit der Tageswechsel um Mitternacht deutscher Zeit passiert
+// Local date (YYYY-MM-DD), so the day changes at local midnight
 function heutigesDatum() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Legt pro Tag höchstens einen Punkt an – und nur, wenn sich der Gesamtwert
-// gegenüber dem letzten gespeicherten Punkt tatsächlich geändert hat.
+// Creates at most one point per day – and only if the total has actually
+// changed compared with the last stored point.
 function speichereVermoegensPunkt(gesamt) {
     const heute = heutigesDatum();
     const heuteKey = `asset_history_${heute}`;
     const wert = Math.round(gesamt * 100) / 100;
 
-    // letzten Punkt VOR heute suchen
+    // find the last point BEFORE today
     let letztesDatum = null;
     let letzterWert = null;
     for (const key in cloudData) {
@@ -548,7 +574,7 @@ function speichereVermoegensPunkt(gesamt) {
     const unveraendert = letzterWert !== null && Math.abs(letzterWert - wert) < 0.005;
 
     if (unveraendert) {
-        // Wert wieder auf Stand des letzten Punkts -> heutigen Punkt entfernen (falls vorhanden)
+        // Value is back at the last point -> remove today's point (if any)
         if (getCloudItem(heuteKey) !== null) setCloudItem(heuteKey, null);
         return;
     }
@@ -559,7 +585,7 @@ function speichereVermoegensPunkt(gesamt) {
     }
 }
 
-// --- Chart Funktionen ---
+// --- Chart functions ---
 function toggleAssetChart() {
     const container = document.getElementById('chartContainer');
     const toggleBtn = document.getElementById('chartToggleBtn');
@@ -579,14 +605,14 @@ function handleChartClick(date, value) {
     const outputEl = document.getElementById('chartDiffOutput');
     outputEl.style.display = 'block';
 
-    // Wenn bereits 2 Punkte ausgewählt waren, starte wieder bei 1
+    // If two points were already selected, start again with one
     if (clickedChartPoints.length >= 2) {
         clickedChartPoints = [];
     }
 
     clickedChartPoints.push({ date, value });
 
-    // Hilfsfunktion für die Formatierung (10.000,00)
+    // Helper for formatting amounts
     const formatCurrency = (num) => formatEuro(num);
 
     const resetBtn = `<button type="button" class="text-btn" onclick="resetChartSelection()">${t('chart.reset')}</button>`;
@@ -603,7 +629,7 @@ function handleChartClick(date, value) {
 
         const diff = p2.value - p1.value;
 
-        // Farben: Grün für positiv, Rot für negativ
+        // Colours: green for positive, red for negative
         let diffClass = '';
         if (diff > 0) diffClass = 'diff-pos';
         else if (diff < 0) diffClass = 'diff-neg';
@@ -670,7 +696,7 @@ function updateAssetChart() {
                     pointHoverRadius: 6,
                     pointHitRadius: 14,
                     fill: true,
-                    tension: 0.3 // Leicht gebogene Linie
+                    tension: 0.3 // Slightly curved line
                 }]
             },
             options: {
@@ -696,7 +722,7 @@ function updateAssetChart() {
                         callbacks: { label: (item) => formatEuro(item.parsed.y) + ' €' }
                     }
                 },
-                // NEU: Klick auf Datenpunkte abfangen
+                // Handle clicks on data points
                 onClick: (event, elements, chart) => {
                     if (elements.length > 0) {
                         const dataIndex = elements[0].index;
@@ -711,15 +737,15 @@ function updateAssetChart() {
     }
 }
 
-// ===== Einnahmen & Fixkosten (Monatsbudget mit Szenarien) =====
-// Speicherort (in "haushalt"):
-//   budget_szenarien = JSON-Text: [{ name, einnahmen: [{name, betrag}], sparen: [{name, betrag, einheit: 'eur'|'proz'}],
-//                                    fix: { "<Zeile im Fixkosten-Tab>": "Betrag pro Monat" }, fixExtra: [{name, betrag}] }, …]
-//   fix      = Abweichungen vom Fixkosten-Tab nur in diesem Szenario (der Tab selbst bleibt unverändert)
-//   fixExtra = zusätzliche Fixkosten, die es nur in diesem Szenario gibt
-//   budget_aktiv     = Index des zuletzt geöffneten Szenarios
-// Ältere Daten (budget_anzahl, budget_name_i, budget_betrag_i) werden beim ersten Laden als Szenario 1 übernommen.
-// Die Fixkosten kommen live aus dem Fixkosten-Tab (fixkostenMonatlich / fixkostenPosten) und gelten für alle Szenarien.
+// ===== Income & fixed costs (monthly budget with scenarios) =====
+// Stored in "haushalt":
+//   budget_szenarien = JSON text: [{ name, einnahmen: [{name, betrag}], sparen: [{name, betrag, einheit: 'eur'|'proz'}],
+//                                    fix: { "<row in the fixed costs tab>": "amount per month" }, fixExtra: [{name, betrag}] }, …]
+//   fix      = deviations from the fixed costs tab in this scenario only (the tab itself stays unchanged)
+//   fixExtra = additional fixed costs that exist only in this scenario
+//   budget_aktiv     = index of the last opened scenario
+// Older data (budget_anzahl, budget_name_i, budget_betrag_i) is migrated into scenario 1 on first load.
+// Fixed costs come live from the fixed costs tab (fixkostenMonatlich / fixkostenPosten) and apply to all scenarios.
 let budgetSzenarien = [];
 let budgetAktiv = 0;
 let budgetGeladen = false;
@@ -765,7 +791,7 @@ function loadBudgetData() {
     }
 
     if (budgetSzenarien.length === 0) {
-        // Übernahme aus der Version ohne Szenarien
+        // Migration from the version without scenarios
         const einnahmen = [];
         const anzahl = getCloudItem('budget_anzahl');
         if (anzahl === null) {
@@ -792,7 +818,7 @@ function speichereBudget() {
     setCloudItem('budget_aktiv', budgetAktiv);
 }
 
-// --- Szenario-Tabs ---
+// --- Scenario tabs ---
 function zeichneBudgetTabs() {
     const bar = document.getElementById('budgetTabs');
     bar.innerHTML = '';
@@ -837,7 +863,7 @@ function budgetSzenarioWechseln(idx) {
     updateBudget(false);
 }
 
-// Neues Szenario startet als Kopie des aktuellen – meist ändern sich nur einzelne Einnahmen
+// A new scenario starts as a copy of the current one – usually only some income changes
 function budgetSzenarioHinzufuegen() {
     const kopie = JSON.parse(JSON.stringify(budgetSzenario()));
     kopie.name = t('budget.scenarioNumbered', { n: budgetSzenarien.length + 1 });
@@ -860,7 +886,7 @@ function budgetSzenarioLoeschen() {
     updateBudget(true);
 }
 
-// --- Listen (Einnahmen / Sparraten) ---
+// --- Lists (income / savings) ---
 function zeichneBudgetListe(typ) {
     const cfg = BUDGET_LISTEN[typ];
     const body = document.getElementById(cfg.bodyId);
@@ -896,7 +922,7 @@ function addBudgetZeile(typ) {
     if (zeile) zeile.querySelector('.budget-name').focus();
 }
 
-// Übernimmt die Sparrate aus dem Zinseszins-Rechner und die Eigenbeiträge der Altersvorsorgedepots
+// Imports the savings rate from the compound interest calculator and the contributions of the pension accounts
 function sparratenUebernehmen() {
     const quellen = [{ name: t('default.etfPlan'), betrag: Math.max(0, zinsZahl('zinsSparrate')) }];
     if (avdAktiviert()) {
@@ -976,8 +1002,8 @@ function richteBudgetEin() {
     });
 }
 
-// --- Fixkosten im Szenario ---
-// Wirksame Fixkosten eines Szenarios: Werte aus dem Tab, ggf. überschrieben, plus zusätzliche Posten
+// --- Fixed costs per scenario ---
+// Effective fixed costs of a scenario: values from the tab, possibly overridden, plus additional items
 function fixFuerSzenario(sz) {
     let summe = 0;
     const posten = [];
@@ -1084,14 +1110,14 @@ function richteBudgetFixEin() {
         const index = Number(row.dataset.index);
         const sz = budgetSzenario();
         const text = ev.target.value;
-        // Leer oder gleich dem Tab-Wert = keine Anpassung
+        // Empty or equal to the tab value = no adjustment
         if (text === '' || Math.abs((parseFloat(text) || 0) - tabWert(index)) < 0.005) delete sz.fix[String(index)];
         else sz.fix[String(index)] = text;
         row.classList.toggle('angepasst', sz.fix[String(index)] !== undefined);
         updateBudget(true);
     });
 
-    // Leeres Feld nach dem Verlassen wieder mit dem Tab-Wert füllen
+    // Refill an empty field with the tab value when it loses focus
     liste.addEventListener('focusout', (ev) => {
         if (!ev.target.classList.contains('budget-fixbetrag') || ev.target.value !== '') return;
         ev.target.value = String(rund2(tabWert(Number(ev.target.closest('.budget-fixrow').dataset.index))));
@@ -1131,7 +1157,7 @@ function richteBudgetFixEin() {
     });
 }
 
-// --- Berechnung ---
+// --- Calculation ---
 function berechneSzenario(sz) {
     const einnahmen = sz.einnahmen.reduce((s, e) => s + (parseFloat(e.betrag) || 0), 0);
     const fix = fixFuerSzenario(sz).summe;
@@ -1179,14 +1205,14 @@ function updateBudget(speichern) {
     }
     document.getElementById('budgetSaldoSub').textContent = sub;
 
-    // Balken: Fixkosten / Sparen / frei im Verhältnis zu den Einnahmen
+    // Bar: fixed costs / savings / available relative to income
     const basis = Math.max(r.einnahmen, fix + r.sparen);
     const breite = (v) => (basis > 0 ? Math.max(0, v) / basis * 100 : 0) + '%';
     document.getElementById('budgetBarFix').style.width = breite(fix);
     document.getElementById('budgetBarSpar').style.width = breite(r.sparen);
     document.getElementById('budgetBarFrei').style.width = breite(r.frei);
 
-    // Hinweis, falls Sparen bereits als Fixkosten eingetragen ist
+    // Warning if savings are already listed as fixed costs
     const hinweis = document.getElementById('budgetDoppeltHinweis');
     const sparFix = fixInfo.posten.filter(f => f.wert > 0 && /spar|depot|etf|saving|invest/i.test(f.name)).map(f => ({ name: f.name, monatlich: f.wert }));
     hinweis.hidden = !(r.sparen > 0 && sparFix.length > 0);
@@ -1196,7 +1222,7 @@ function updateBudget(speichern) {
         });
     }
 
-    // Vergleich aller Szenarien
+    // Comparison of all scenarios
     const vgl = document.getElementById('budgetVergleich');
     vgl.hidden = budgetSzenarien.length < 2;
     const vglBody = document.getElementById('budgetVergleichBody');
@@ -1235,18 +1261,18 @@ function toggleBudget() {
 }
 
 function resetChartSelection() {
-    // 1. Array leeren
+    // 1. Clear the selection
     clickedChartPoints = [];
 
-    // 2. Anzeige zurücksetzen und ausblenden
+    // 2. Reset and hide the output
     const outputEl = document.getElementById('chartDiffOutput');
     outputEl.style.display = 'none';
     outputEl.innerHTML = '';
 }
 
-// ===== Zinseszins-Rechner =====
-// Speicherort (in "haushalt"): zins_start, zins_sparrate, zins_rendite, zins_jahre, zins_inflation, zins_ansicht
-// Solange kein eigenes Startkapital gespeichert ist, folgt das Startkapital automatisch dem Depotwert aus der Vermögensliste.
+// ===== Compound interest calculator =====
+// Stored in "haushalt": zins_start, zins_sparrate, zins_rendite, zins_jahre, zins_inflation, zins_ansicht
+// As long as no starting capital has been saved, it automatically follows the portfolio value from the asset list.
 const ZINS_FELDER = {
     zinsStart: 'zins_start',
     zinsSparrate: 'zins_sparrate',
@@ -1264,7 +1290,7 @@ function zinsZahl(id) {
     return parseFloat(document.getElementById(id).value) || 0;
 }
 
-// Depot-Zeile in der Vermögensliste finden (nach Name, sonst die Standard-Zeile "ETF & Aktiendepot")
+// Find the portfolio row in the asset list (by name, otherwise the default "ETF & stock portfolio" row)
 function depotwertFinden() {
     let idx = -1;
     for (let i = 0; i < standardAssets.length; i++) {
@@ -1287,7 +1313,7 @@ function aktualisiereDepotHinweis() {
     const depot = depotwertFinden();
     const startEl = document.getElementById('zinsStart');
 
-    // Noch kein eigenes Startkapital gespeichert -> Depotwert automatisch übernehmen
+    // No starting capital saved yet -> use the portfolio value automatically
     if (getCloudItem('zins_start') === null) {
         startEl.value = depot.wert || '';
     }
@@ -1303,7 +1329,7 @@ function depotwertUebernehmen() {
     updateZinsRechner(true);
 }
 
-// Monatliche Verzinsung mit dem zum Jahreszins passenden Monatszins, Sparrate jeweils am Monatsende
+// Monthly compounding with the monthly rate equivalent to the annual rate, contributions at the end of each month
 function berechneZinseszins(start, sparrate, renditeProzent, jahre, inflationProzent) {
     const rMonat = Math.pow(1 + renditeProzent / 100, 1 / 12) - 1;
     const inflation = inflationProzent / 100;
@@ -1420,7 +1446,7 @@ function zeichneZinsChart(verlauf) {
         zinsChartInstance.data.datasets[2].data = eingezahlt;
     }
 
-    // Die gewählte Ansicht wird betont (dicker und gefüllt), die andere bleibt als dünne Linie sichtbar
+    // The selected view is emphasised (thicker and filled); the other stays visible as a thin line
     const istReal = zinsAnsicht === 'real';
     const [dsNominal, dsReal] = zinsChartInstance.data.datasets;
     dsNominal.borderWidth = istReal ? 1.5 : 2.5;
@@ -1462,12 +1488,12 @@ function loadZinsData() {
     });
     setZinsAnsicht(getCloudItem('zins_ansicht'));
     zinsGeladen = true;
-    aktualisiereDepotHinweis(); // setzt ggf. den Depotwert als Startkapital und rechnet
+    aktualisiereDepotHinweis(); // uses the portfolio value as starting capital if needed and recalculates
 }
 
-// ===== Altersvorsorgedepot-Rechner (Förderung ab 2027, Altersvorsorgereformgesetz) =====
-// Bis zu zwei Depots. Depot 1 speichert unter avd_<feld> (wie bisher), Depot 2 unter avd2_<feld>.
-// avd2_aktiv = true, solange das zweite Depot existiert.
+// ===== German pension account calculator (Altersvorsorgedepot, subsidised from 2027, Altersvorsorgereformgesetz) =====
+// Up to two accounts. Account 1 is stored under avd_<field> (as before), account 2 under avd2_<field>.
+// avd2_aktiv = true while the second account exists.
 const AVD_FELDER = {
     avdName: 'name',
     avdAlter: 'alter',
@@ -1485,13 +1511,13 @@ const AVD_STANDARD = {
     name: 'avd.default1', alter: '30', rente: '67', beitrag: '150', kinder: '0', kinderjahre: '0',
     rendite: '5', kosten: '0.5', inflation: '2', steuerheute: '', steuerrente: '20'
 };
-const AVD_STANDARD_NAME_2 = 'avd.default2';   // Schlüssel in i18n.js
-const AVD_GRUNDZULAGE_STUFE1 = 360;   // 50 % Zulage bis hier
-const AVD_GEFOERDERT_MAX = 1800;      // 25 % Zulage bis hier
-const AVD_KINDERZULAGE_MAX = 300;     // je Kind und Jahr
-const AVD_BERUFSEINSTEIGER = 200;     // einmalig, unter 25
+const AVD_STANDARD_NAME_2 = 'avd.default2';   // key in i18n.js
+const AVD_GRUNDZULAGE_STUFE1 = 360;   // 50 % subsidy up to here
+const AVD_GEFOERDERT_MAX = 1800;      // 25 % subsidy up to here
+const AVD_KINDERZULAGE_MAX = 300;     // per child and year
+const AVD_BERUFSEINSTEIGER = 200;     // one-off, under 25
 const AVD_AUSZAHLPLAN_BIS = 85;
-const ABGELTUNGSSTEUER = 0.26375;     // 25 % + Soli
+const ABGELTUNGSSTEUER = 0.26375;     // 25 % + solidarity surcharge
 const TEILFREISTELLUNG_AKTIEN_ETF = 0.30;
 const ETF_STEUER_AUF_GEWINN = (1 - TEILFREISTELLUNG_AKTIEN_ETF) * ABGELTUNGSSTEUER;
 
@@ -1509,7 +1535,7 @@ function avdAnzahl() {
     return istWahr(getCloudItem('avd2_aktiv')) ? 2 : 1;
 }
 
-// Gespeicherter Wert eines Depots als Text, sonst Standardwert
+// Stored value of an account as text, otherwise the default
 function avdWert(nr, feld) {
     const v = getCloudItem(avdPrefix(nr) + feld);
     if (feld === 'name') {
@@ -1530,19 +1556,19 @@ function grundzulage(jahresbeitrag) {
         + Math.max(0, Math.min(b, AVD_GEFOERDERT_MAX) - AVD_GRUNDZULAGE_STUFE1) * 0.25;
 }
 
-// 100 % des Eigenbeitrags (bis 1.800 €), höchstens 300 € je Kind
+// 100 % of the own contribution (up to €1,800), at most €300 per child
 function kinderzulage(jahresbeitrag, kinder) {
     if (kinder <= 0) return 0;
     return Math.min(Math.max(0, jahresbeitrag), AVD_GEFOERDERT_MAX, kinder * AVD_KINDERZULAGE_MAX);
 }
 
-// Gleichbleibende Monatsrate, mit der ein Kapital in "monate" Monaten aufgebraucht ist (Rest wird weiter angelegt)
+// Constant monthly payment that uses up the capital in "monate" months (the remainder stays invested)
 function annuitaet(wert, rMonat, monate) {
     if (monate <= 0 || wert <= 0) return 0;
     return Math.abs(rMonat) < 1e-12 ? wert / monate : wert * rMonat / (1 - Math.pow(1 + rMonat, -monate));
 }
 
-// Anteil, der nach Abgeltungssteuer auf den Gewinnanteil übrig bleibt (Aktien-ETF)
+// Share left after German capital gains tax on the gain portion (equity ETF)
 function etfNettoFaktor(wert, eingezahlt) {
     if (wert <= 0) return 1;
     const gewinnAnteil = Math.max(0, wert - eingezahlt) / wert;
@@ -1568,7 +1594,7 @@ function berechneAvd(p) {
         avd += gz + kz + bz;
         summeGrund += gz; summeKind += kz; summeBonus += bz;
 
-        // Günstigerprüfung: Sonderausgabenabzug (Beiträge bis 1.800 € + Zulagen) gegen die Zulagen
+        // Günstigerprüfung: tax deduction (contributions up to €1,800 + subsidies) compared with the subsidies
         if (p.steuerHeute > 0) {
             const abzug = Math.min(jahresbeitrag, AVD_GEFOERDERT_MAX) + gz + kz;
             steuerVorteil += Math.max(0, abzug * p.steuerHeute / 100 - (gz + kz));
@@ -1583,7 +1609,7 @@ function berechneAvd(p) {
     const steuerEtf = Math.max(0, etf - eigen) * ETF_STEUER_AUF_GEWINN;
     const nettoEtf = etf - steuerEtf;
 
-    // Auszahlplan bis 85 – für das Altersvorsorgedepot und zum Vergleich für das ETF-Depot
+    // Payout plan until 85 – for the pension account and, for comparison, for the ETF portfolio
     const monate = Math.max(12, (AVD_AUSZAHLPLAN_BIS - p.rente) * 12);
     const rateBrutto = annuitaet(avd, rMonat, monate);
     const rateNetto = rateBrutto * (1 - p.steuerRente / 100);
@@ -1596,7 +1622,7 @@ function berechneAvd(p) {
     };
 }
 
-// Parameter eines Depots aus den gespeicherten Werten (bzw. Standardwerten)
+// Parameters of an account from the stored values (or defaults)
 function avdParameter(nr) {
     const z = (feld) => parseFloat(avdWert(nr, feld)) || 0;
     const alter = Math.min(70, Math.max(16, Math.round(z('alter')) || 30));
@@ -1690,7 +1716,7 @@ function avdDepotEntfernen() {
 function updateAvdRechner(speichern) {
     if (speichern) {
         avdFormularSpeichern();
-        // Namen im Umschalter sofort mitziehen
+        // Update the name in the switcher immediately
         const btn = document.getElementById('avdProfilBar').children[avdAktiv - 1];
         if (btn) { btn.textContent = avdName(avdAktiv); btn.title = avdName(avdAktiv); }
     }
@@ -1699,7 +1725,7 @@ function updateAvdRechner(speichern) {
     const r = berechneAvd(p);
     const prozent = (v) => formatZahl(v, 1);
 
-    // Zulagen pro Jahr als Info
+    // Subsidies per year as info
     const gz = grundzulage(r.jahresbeitrag);
     const kz = kinderzulage(r.jahresbeitrag, p.kinder);
     const quote = r.jahresbeitrag > 0 ? (gz + kz) / r.jahresbeitrag * 100 : 0;
@@ -1742,14 +1768,14 @@ function updateAvdRechner(speichern) {
     vorteilRow.hidden = !(p.steuerHeute > 0 && r.steuerVorteil > 0.005);
     document.getElementById('avdAusVorteil').textContent = '+' + euro(r.steuerVorteil);
 
-    // Auszahlplan
+    // Payout plan
     document.getElementById('avdRateNetto').textContent = formatEuro(r.rateNetto);
     document.getElementById('avdRateSub').textContent = t('avd.rateSub', {
         brutto: euro(r.rateBrutto), von: p.rente, bis: AVD_AUSZAHLPLAN_BIS,
         jahre: jahreText(r.monate / 12, true), real: euro(r.rateNetto / r.inflFaktor)
     });
 
-    // Vergleich ETF-Depot: gesamt und monatlich
+    // Comparison with ETF portfolio: total and monthly
     document.getElementById('avdEtfNetto').textContent = euro(r.nettoEtf);
     document.getElementById('avdEtfRate').textContent = t('avd.etfRate', { v: euro(r.rateEtfNetto) });
     document.getElementById('avdEtfSub').textContent = t('avd.etfSub', {
@@ -1841,9 +1867,9 @@ function loadAvdData() {
     updateAvdRechner(false);
 }
 
-// ===== Monatliches Einkommen aus Privatvermögen =====
-// Speicherort (in "haushalt"): eink_alter, eink_rente, eink_bis, eink_inflation, eink_rest_rendite, eink_ansicht,
-//   eink_q_depot, eink_q_avd1, eink_q_avd2, eink_q_rest (welche Quellen einbezogen werden)
+// ===== Monthly income from private assets =====
+// Stored in "haushalt": eink_alter, eink_rente, eink_bis, eink_inflation, eink_rest_rendite, eink_ansicht,
+//   eink_q_depot, eink_q_avd1, eink_q_avd2, eink_q_rest (which sources are included)
 const EINK_FELDER = {
     einkAlter: 'eink_alter',
     einkRente: 'eink_rente',
@@ -1906,7 +1932,7 @@ function zeichneEinkQuellen() {
     document.getElementById('einkRestFeld').hidden = !einkQuelleAn('eink_q_rest', false);
 }
 
-// Summe der Vermögensliste ohne die Depot-Zeile
+// Total of the asset list excluding the portfolio row
 function vermoegenOhneDepot() {
     const depot = depotwertFinden();
     let summe = 0;
@@ -1937,7 +1963,7 @@ function updateEinkommen(speichern) {
     const zeilen = [];
     let erhaltNom = 0, erhaltReal = 0;
 
-    // ETF-Depot: Werte aus dem Zinseszins-Rechner, aber bis zum Ruhestandsalter gerechnet
+    // ETF portfolio: values from the compound interest calculator, but projected until retirement age
     if (einkQuelleAn('eink_q_depot', true)) {
         const start = Math.max(0, zinsZahl('zinsStart'));
         const spar = Math.max(0, zinsZahl('zinsSparrate'));
@@ -1951,7 +1977,7 @@ function updateEinkommen(speichern) {
         erhaltNom += erhalt; erhaltReal += erhalt / faktor;
     }
 
-    // Altersvorsorgedepots: Auszahlplan bis 85 ab dem jeweiligen Auszahlungsalter
+    // Pension accounts: payout plan until 85 from each account's payout age
     for (let nr = 1; nr <= (avdAktiviert() ? avdAnzahl() : 0); nr++) {
         if (!einkQuelleAn('eink_q_avd' + nr, true)) continue;
         const p = avdParameter(nr);
@@ -1962,7 +1988,7 @@ function updateEinkommen(speichern) {
         erhaltNom += r.rateNetto; erhaltReal += r.rateNetto / r.inflFaktor;
     }
 
-    // Übriges Vermögen aus der Liste (Tagesgeld, Gold, …) mit eigener Rendite, vor Steuern
+    // Other assets from the list (savings account, gold, …) with their own return, before tax
     if (einkQuelleAn('eink_q_rest', false)) {
         const heute = vermoegenOhneDepot();
         const rr = Math.max(-99, zinsZahl('einkRestRendite'));
@@ -2044,9 +2070,9 @@ function loadEinkData() {
     updateEinkommen(false);
 }
 
-// ===== Einstellungen: Sprache und Altersvorsorgedepot =====
-// einstellung_avd (in "haushalt") = true/false – gilt für den ganzen Haushalt.
-// Nicht gesetzt: an, wenn Deutsch gewählt ist oder schon Depot-Daten gespeichert sind.
+// ===== Settings: language and German pension account =====
+// einstellung_avd (in "haushalt") = true/false – applies to the whole household.
+// Not set: on if German is selected or pension account data already exists.
 function avdAktiviert() {
     const v = getCloudItem('einstellung_avd');
     if (v !== null) return istWahr(v);
@@ -2064,7 +2090,7 @@ function wendeAvdEinstellungAn() {
     }
     document.getElementById('einstellungAvd').checked = an;
 
-    // Texte, die das Altersvorsorgedepot erwähnen
+    // Texts that mention the pension account
     const intro = document.getElementById('einkIntro');
     intro.dataset.i18n = an ? 'eink.intro' : 'eink.introNoAvd';
     intro.textContent = t(intro.dataset.i18n);
@@ -2094,11 +2120,11 @@ function richteEinstellungenEin() {
 
 let datenGeladen = false;
 
-// Nach einem Sprachwechsel alle berechneten Texte, Vorgabenamen und Diagramme neu aufbauen
+// After a language change, rebuild all calculated texts, default names and charts
 window.nachSprachwechsel = function () {
     if (!datenGeladen) return;
 
-    // Vorgabenamen in den Listen in die neue Sprache übertragen (eigene Namen bleiben)
+    // Translate default names in the lists into the new language (custom names stay)
     for (let i = 0; i < ANZAHL_FIXKOSTEN; i++) {
         const el = document.getElementById(`fixName${i}`);
         el.value = lokalisiereStandard(el.value);
@@ -2108,7 +2134,7 @@ window.nachSprachwechsel = function () {
         el.value = lokalisiereStandard(el.value);
     }
 
-    // Diagramme mit neuen Beschriftungen neu erstellen
+    // Recreate the charts with new labels
     [vermoegenChartInstance, zinsChartInstance, avdChartInstance].forEach(c => { if (c) c.destroy(); });
     vermoegenChartInstance = zinsChartInstance = avdChartInstance = null;
     resetChartSelection();
@@ -2129,7 +2155,7 @@ window.nachSprachwechsel = function () {
 let appEingerichtet = false;
 
 function initApp() {
-    // Ereignisse nur einmal einrichten (initApp läuft bei jedem Login)
+    // Set up event listeners only once (initApp runs on every login)
     if (!appEingerichtet) {
         appEingerichtet = true;
 

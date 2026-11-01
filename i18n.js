@@ -1,12 +1,12 @@
-// ===== Sprachen (Deutsch / Englisch) =====
-// Alle sichtbaren Texte der App stehen hier. Im HTML werden sie über Attribute verknüpft:
-//   data-i18n="schluessel"              → Textinhalt
-//   data-i18n-placeholder="schluessel"  → Platzhalter eines Eingabefelds
-//   data-i18n-aria="schluessel"         → aria-label
-//   data-i18n-title="schluessel"        → title (Tooltip)
-//   data-i18n-toggle="schluessel"       → Ein-/Ausblende-Buttons: schluessel.show / schluessel.hide je nach aria-expanded
-// Im JavaScript: t('schluessel', { platzhalter: wert }) – {platzhalter} im Text wird ersetzt.
-// Die Sprache wird pro Gerät gespeichert (localStorage), damit jeder im Haushalt seine eigene wählen kann.
+// ===== Languages (German / English) =====
+// All visible texts of the app live here. In the HTML they are linked via attributes:
+//   data-i18n="key"              → text content
+//   data-i18n-placeholder="key"  → placeholder of an input
+//   data-i18n-aria="key"         → aria-label
+//   data-i18n-title="key"        → title (tooltip)
+//   data-i18n-toggle="key"       → show/hide buttons: key.show / key.hide depending on aria-expanded
+// In JavaScript: t('key', { placeholder: value }) – {placeholder} in the text is replaced.
+// The language is stored per device (localStorage), so everyone in the household can choose their own.
 
 const I18N = {
     de: {
@@ -16,7 +16,6 @@ const I18N = {
         'app.heading': 'Finanz- & Haushaltsplaner',
         'app.logout': 'Abmelden',
         'app.settings': 'Einstellungen',
-        'app.configMissing': 'firebase-config.js fehlt. Kopiere firebase-config.example.js nach firebase-config.js und trage deine Firebase-Daten ein.',
         'app.loadError': 'Fehler beim Laden der Daten:',
         'app.logoAlt': 'Logo',
 
@@ -27,7 +26,7 @@ const I18N = {
         'login.submit': 'Einloggen',
         'login.failed': 'Anmeldung fehlgeschlagen: ',
 
-        // Einstellungen
+        // Settings
         'settings.title': 'Einstellungen',
         'settings.language': 'Sprache',
         'settings.avd': 'Altersvorsorgedepot-Rechner',
@@ -39,7 +38,7 @@ const I18N = {
         'tab.fixed': 'Fixkosten',
         'tab.assets': 'Vermögen',
 
-        // Allgemein
+        // General
         'common.noName': 'ohne Namen',
         'common.description': 'Bezeichnung',
         'common.amount': 'Betrag',
@@ -55,7 +54,7 @@ const I18N = {
         'view.nominal': 'Nominal',
         'view.real': 'Inflationsbereinigt',
 
-        // Monatsrechner
+        // Monthly budget
         'month.01': 'Januar', 'month.02': 'Februar', 'month.03': 'März', 'month.04': 'April',
         'month.05': 'Mai', 'month.06': 'Juni', 'month.07': 'Juli', 'month.08': 'August',
         'month.09': 'September', 'month.10': 'Oktober', 'month.11': 'November', 'month.12': 'Dezember',
@@ -76,7 +75,7 @@ const I18N = {
         'month.deleteEntry': 'Ausgabe löschen',
         'month.confirmDelete': 'Ausgabe „{name}“ löschen?',
 
-        // Fixkosten
+        // Fixed costs
         'fixed.title': 'Fixkosten',
         'fixed.colName': 'Bezeichnung',
         'fixed.colAmount': 'Betrag (€)',
@@ -100,7 +99,7 @@ const I18N = {
         'fixed.default.10': 'Sparen / Depot',
         'fixed.default.11': 'Sonstiges',
 
-        // Vermögen
+        // Assets
         'assets.title': 'Vermögen',
         'assets.colCategory': 'Kategorie',
         'assets.colValue': 'Wert (€)',
@@ -121,7 +120,7 @@ const I18N = {
         'chart.reset': 'Auswahl zurücksetzen',
         'chart.totalLabel': 'Gesamtvermögen (€)',
 
-        // Einnahmen & Fixkosten (Szenarien)
+        // Income & fixed costs (scenarios)
         'budget.toggle.show': 'Einnahmen & Fixkosten anzeigen',
         'budget.toggle.hide': 'Einnahmen & Fixkosten ausblenden',
         'budget.scenariosAria': 'Szenarien',
@@ -192,7 +191,7 @@ const I18N = {
         'budget.adjustedTag': ' · Fixkosten angepasst',
         'budget.openScenario': 'Szenario öffnen',
 
-        // Zinseszins-Rechner
+        // Compound interest
         'zins.toggle.show': 'Zinseszins-Rechner anzeigen',
         'zins.toggle.hide': 'Zinseszins-Rechner ausblenden',
         'zins.start': 'Startkapital / Depotwert (€)',
@@ -220,7 +219,7 @@ const I18N = {
         'zins.chartReal': 'Inflationsbereinigt',
         'zins.chartPaidIn': 'Eingezahlt',
 
-        // Altersvorsorgedepot
+        // German pension account (Altersvorsorgedepot)
         'avd.toggle.show': 'Altersvorsorgedepot-Rechner anzeigen',
         'avd.toggle.hide': 'Altersvorsorgedepot-Rechner ausblenden',
         'avd.intro': 'Staatlich gefördertes Depot ab 2027: Grundzulage 50 % auf die ersten 360 € und 25 % bis 1.800 € Eigenbeitrag im Jahr (max. 540 €), dazu bis zu 300 € je Kind. Auszahlung frühestens mit 65, als Auszahlplan mindestens bis 85.',
@@ -279,7 +278,7 @@ const I18N = {
         'avd.chartAge': 'Alter',
         'avd.chartAgeTooltip': 'Alter {n}',
 
-        // Einkommen aus Privatvermögen
+        // Income from private assets
         'eink.toggle.show': 'Monatliches Einkommen aus Privatvermögen anzeigen',
         'eink.toggle.hide': 'Monatliches Einkommen ausblenden',
         'eink.intro': 'Was dein privates Vermögen im Ruhestand pro Monat auszahlen kann. Die Werte kommen aus dem Zinseszins-Rechner, den Altersvorsorgedepots und auf Wunsch aus deiner Vermögensliste.',
@@ -312,7 +311,29 @@ const I18N = {
         'eink.preserveSub': 'ETF-Depot und übriges Vermögen: nur die Erträge entnehmen, das Kapital bleibt erhalten. Altersvorsorgedepots zahlen weiter ihren Auszahlplan bis 85.',
         'eink.preserveSubNoAvd': 'ETF-Depot und übriges Vermögen: nur die Erträge entnehmen, das Kapital bleibt erhalten.',
 
-        // Vorgabewerte, die als Daten gespeichert werden
+        // Demo mode
+        'demo.badge': 'Demo',
+        'demo.loginHint': 'Demo-Modus: Es ist keine Firebase-Datenbank eingerichtet. Melde dich mit dem Test-User an – alle Daten bleiben nur in diesem Browser.',
+        'demo.credentials': 'E-Mail: demo@example.com · Passwort: demo',
+        'demo.start': 'Demo starten',
+        'demo.wrongLogin': 'Im Demo-Modus funktioniert nur der Test-User demo@example.com mit dem Passwort „demo“.',
+        'demo.settingsHint': 'Demo-Modus: Alle Daten sind Beispieldaten und werden nur in diesem Browser gespeichert.',
+        'demo.reset': 'Beispieldaten zurücksetzen',
+        'demo.resetConfirm': 'Alle Änderungen verwerfen und die Beispieldaten neu laden?',
+        'demo.exp.groceries': 'Lebensmittel',
+        'demo.exp.fuel': 'Tanken',
+        'demo.exp.drugstore': 'Drogerie',
+        'demo.exp.leisure': 'Freizeit',
+        'demo.exp.gifts': 'Geschenke',
+        'demo.income.partner': 'Gehalt Partner/in',
+        'demo.income.childBenefit': 'Kindergeld',
+        'demo.income.parentalAllowance': 'Elterngeld',
+        'demo.saving.buffer': 'Rücklagen',
+        'demo.scenario.parental': 'Elternzeit',
+        'demo.fix.daycare': 'Kita',
+        'demo.avd2': 'Depot Partner/in',
+
+        // Default values stored as data
         'default.netSalary': 'Nettogehalt',
         'default.current': 'Aktuell',
         'default.etfPlan': 'ETF-Sparplan'
@@ -325,7 +346,6 @@ const I18N = {
         'app.heading': 'Finance & Household Planner',
         'app.logout': 'Log out',
         'app.settings': 'Settings',
-        'app.configMissing': 'firebase-config.js is missing. Copy firebase-config.example.js to firebase-config.js and enter your Firebase details.',
         'app.loadError': 'Error loading data:',
         'app.logoAlt': 'Logo',
 
@@ -621,6 +641,28 @@ const I18N = {
         'eink.preserveSub': 'ETF portfolio and other assets: withdraw only the returns, the capital is preserved. Pension accounts keep paying their payout plan until 85.',
         'eink.preserveSubNoAvd': 'ETF portfolio and other assets: withdraw only the returns, the capital is preserved.',
 
+        // Demo mode
+        'demo.badge': 'Demo',
+        'demo.loginHint': 'Demo mode: no Firebase database is configured. Sign in with the test user – all data stays in this browser only.',
+        'demo.credentials': 'Email: demo@example.com · Password: demo',
+        'demo.start': 'Start demo',
+        'demo.wrongLogin': 'In demo mode only the test user demo@example.com with the password “demo” works.',
+        'demo.settingsHint': 'Demo mode: all data is sample data and is stored in this browser only.',
+        'demo.reset': 'Reset sample data',
+        'demo.resetConfirm': 'Discard all changes and reload the sample data?',
+        'demo.exp.groceries': 'Groceries',
+        'demo.exp.fuel': 'Fuel',
+        'demo.exp.drugstore': 'Drugstore',
+        'demo.exp.leisure': 'Leisure',
+        'demo.exp.gifts': 'Gifts',
+        'demo.income.partner': 'Partner’s salary',
+        'demo.income.childBenefit': 'Child benefit',
+        'demo.income.parentalAllowance': 'Parental allowance',
+        'demo.saving.buffer': 'Reserves',
+        'demo.scenario.parental': 'Parental leave',
+        'demo.fix.daycare': 'Daycare',
+        'demo.avd2': 'Partner’s account',
+
         // Default values stored as data
         'default.netSalary': 'Net salary',
         'default.current': 'Current',
@@ -634,14 +676,14 @@ function ermittleStartSprache() {
     try {
         const gespeichert = localStorage.getItem('sprache');
         if (gespeichert && I18N[gespeichert]) return gespeichert;
-    } catch (e) { /* localStorage nicht verfügbar */ }
+    } catch (e) { /* localStorage unavailable */ }
     const browser = (navigator.language || 'de').toLowerCase();
     return browser.startsWith('de') ? 'de' : 'en';
 }
 
 let SPRACHE = ermittleStartSprache();
 
-// Text in der aktuellen Sprache, {platzhalter} werden ersetzt
+// Text in the current language, {placeholders} are replaced
 function t(schluessel, werte) {
     let text = (I18N[SPRACHE] && I18N[SPRACHE][schluessel]) ?? I18N.de[schluessel] ?? schluessel;
     if (werte) {
@@ -650,25 +692,25 @@ function t(schluessel, werte) {
     return text;
 }
 
-// Zahlenformat passend zur Sprache (de: 1.234,56 – en: 1,234.56)
+// Number format matching the language (de: 1.234,56 – en: 1,234.56)
 function zahlLocale() {
     return SPRACHE === 'en' ? 'en-GB' : 'de-DE';
 }
 
-// Anführungszeichen passend zur Sprache: „Text“ bzw. “Text”
+// Quotation marks matching the language: „Text“ or “Text”
 function zitat(text) {
     return SPRACHE === 'en' ? '“' + text + '”' : '„' + text + '“';
 }
 
-// "1 Jahr" / "20 Jahren" bzw. "1 year" / "20 years"
+// "1 Jahr" / "20 Jahren" or "1 year" / "20 years"
 function jahreText(n, nominativ) {
     if (n === 1) return t('unit.year', { n });
     return t(nominativ ? 'unit.years' : 'unit.yearsDative', { n });
 }
 
-// --- Vorgabenamen, die als Daten gespeichert werden ---
-// Steht in der Datenbank noch der unveränderte Vorgabename (egal in welcher Sprache),
-// wird er in der aktuellen Sprache angezeigt. Selbst vergebene Namen bleiben unverändert.
+// --- Default names that are stored as data ---
+// If the database still contains the unchanged default name (in any language),
+// it is shown in the current language. Custom names stay unchanged.
 const STANDARD_SCHLUESSEL = [
     ...Array.from({ length: 12 }, (_, i) => 'fixed.default.' + i),
     ...Array.from({ length: 8 }, (_, i) => 'assets.default.' + i),
@@ -691,7 +733,7 @@ function lokalisiereStandard(wert) {
     return String(wert);
 }
 
-// --- Statische Texte im HTML setzen ---
+// --- Apply static texts in the HTML ---
 function wendeSpracheAufHtmlAn(wurzel) {
     const root = wurzel || document;
     root.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
@@ -715,7 +757,7 @@ function wendeSpracheAufHtmlAn(wurzel) {
     }
 }
 
-// Öffnen/Schließen-Button mit passendem Text
+// Show/hide button with the matching text
 function setzeToggle(btn, offen) {
     if (!btn) return;
     btn.setAttribute('aria-expanded', String(offen));
@@ -725,7 +767,7 @@ function setzeToggle(btn, offen) {
 function setzeSprache(sprache) {
     if (!I18N[sprache] || sprache === SPRACHE) return;
     SPRACHE = sprache;
-    try { localStorage.setItem('sprache', sprache); } catch (e) { /* nur für diese Sitzung */ }
+    try { localStorage.setItem('sprache', sprache); } catch (e) { /* for this session only */ }
     wendeSpracheAufHtmlAn();
     if (typeof window.nachSprachwechsel === 'function') window.nachSprachwechsel();
 }

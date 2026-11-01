@@ -12,7 +12,7 @@ You can try the app without setting up Firebase:
 
 1. Clone or download the repository.
 2. Start a local web server in the project folder, e.g. `python3 -m http.server 8000`.
-3. Open `http://localhost:8000` and sign in with the test user:
+3. Open `http://localhost:8000/?demo` and sign in with the test user:
    - Email: `demo@example.com`
    - Password: `demo`
 

@@ -6,6 +6,20 @@ Your bank accounts are **not** connected through a banking or wealth API. All va
 
 The app is also meant to support private retirement planning: it projects how your savings grow over time, what they are worth after inflation, and how much monthly income your private assets could provide in retirement.
 
+## Try the demo
+
+You can try the app without setting up Firebase:
+
+1. Clone or download the repository.
+2. Start a local web server in the project folder, e.g. `python3 -m http.server 8000`.
+3. Open `http://localhost:8000` and sign in with the test user:
+   - Email: `demo@example.com`
+   - Password: `demo`
+
+Without a `firebase-config.js` the app automatically runs in **demo mode**. It comes with a sample household and keeps all changes in your browser only (localStorage). Nothing is sent to a server. You can reset the sample data at any time in the settings (⚙︎).
+
+With Firebase configured, you can still open the demo by adding `?demo` to the URL.
+
 ## Features
 
 - **Monthly budget**: account balance, expenses that can be ticked off once paid, and the amount still available this month. New months start from the expenses of the last month you edited.
@@ -17,6 +31,7 @@ The app is also meant to support private retirement planning: it projects how yo
 - **Retirement income from private assets**: combines the ETF portfolio, the pension accounts and, optionally, your other assets into an estimated monthly income from a chosen age. It shows both a payout plan and a capital-preservation variant, nominal or in today's money.
 - **German and English**: switch the language in the settings. The choice is saved per device.
 - **Mobile-friendly**: designed for smartphones, can be added to the home screen and supports light and dark mode.
+- **Demo mode**: try everything with sample data, no Firebase needed.
 
 ## Tech stack
 
@@ -30,7 +45,9 @@ The app is also meant to support private retirement planning: it projects how yo
 index.html                  Layout and styles
 app.js                      Application logic and calculations
 i18n.js                     All texts in German and English
-firebase-config.js          Template for your Firebase configuration
+demo.js                     Demo mode: local test user and sample data
+firebase-config.example.js  Template for your Firebase configuration
+firebase-config.js          Your own configuration (not in the repository)
 database.rules.json         Example security rules for the Realtime Database
 pictures/                   Logo and app icon
 ```

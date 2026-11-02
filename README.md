@@ -1,4 +1,4 @@
-# Household Budget Calculator
+# Household- & RetirementPlanningCalculator
 
 This project helps you keep track of your own financial data: monthly spending, fixed costs, assets and savings. I run my own instance with a Firebase Realtime Database as the backend.
 

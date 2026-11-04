@@ -46,7 +46,6 @@ index.html                  Layout and styles
 app.js                      Application logic and calculations
 i18n.js                     All texts in German and English
 demo.js                     Demo mode: local test user and sample data
-firebase-config.example.js  Template for your Firebase configuration
 firebase-config.js          Your own configuration (not in the repository)
 database.rules.json         Example security rules for the Realtime Database
 pictures/                   Logo and app icon
